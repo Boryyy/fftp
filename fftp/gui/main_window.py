@@ -419,30 +419,6 @@ class FTPClientGUI(QMainWindow):
 
         log_header.addStretch()
 
-        self.log_enabled_check_top = QCheckBox("Enable Logging")
-        self.log_enabled_check_top.setChecked(True)
-        log_header.addWidget(self.log_enabled_check_top)
-
-        clear_log_btn = QPushButton("Clear")
-        clear_log_btn.setMaximumWidth(60)
-        clear_log_btn.setMaximumHeight(24)
-        clear_log_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                font-weight: 500;
-                font-size: 11px;
-                padding: 4px 8px;
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-            }
-        """)
-        clear_log_btn.clicked.connect(self.clear_log)
-        log_header.addWidget(clear_log_btn)
-
         log_layout.addLayout(log_header)
 
         # Message log text area
