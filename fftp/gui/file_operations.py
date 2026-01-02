@@ -7,16 +7,21 @@ from PyQt6.QtWidgets import QMessageBox, QInputDialog
 from ..models import RemoteFile
 
 
-def upload_file(manager, local_path: Path, current_remote_path: str, 
-                log_callback=None, status_callback=None, 
+def upload_file(manager, local_path: Path, current_remote_path: str,
+                log_callback=None, status_callback=None,
                 queue_callback=None, move_completed_callback=None,
-                refresh_callback=None, format_size_func=None):
-    """Upload a local file to remote server"""
+                refresh_callback=None, format_size_func=None,
+                parent_widget=None, overwrite_mode="ask"):
+    """Upload a local file to remote server with overwrite checking
+
+    Args:
+        overwrite_mode: "ask", "overwrite", "skip", "rename"
+    """
     if not manager:
         if status_callback:
             status_callback("Not connected")
         return False
-    
+
     try:
         if current_remote_path == "." or current_remote_path == "":
             try:
@@ -28,24 +33,142 @@ def upload_file(manager, local_path: Path, current_remote_path: str,
                             log_callback(f"Using actual directory: {actual_dir}")
             except:
                 pass
-            
+
             if current_remote_path == "." or current_remote_path == "":
                 remote_path = local_path.name
             else:
                 remote_path = f"{current_remote_path.rstrip('/')}/{local_path.name}".lstrip("./")
         else:
             remote_path = f"{current_remote_path.rstrip('/')}/{local_path.name}".lstrip("./")
-        
+
+        # Check if remote file exists and handle overwrite
+        remote_file_exists = False
+        remote_file_info = None
+
+        try:
+            # List current directory to check if file exists
+            files = manager.list_files(current_remote_path)
+            for file_info in files:
+                if file_info.name == local_path.name:
+                    remote_file_exists = True
+                    remote_file_info = file_info
+                    break
+        except Exception:
+            # If we can't list directory, assume file doesn't exist
+            pass
+
+        if remote_file_exists and remote_file_info:
+            # Compare files to determine if they're different
+            local_size = local_path.stat().st_size
+            local_mtime = local_path.stat().st_mtime
+
+            size_different = local_size != remote_file_info.size
+
+            # Compare modification times (with some tolerance)
+            time_different = False
+            if hasattr(remote_file_info, 'modified') and remote_file_info.modified:
+                try:
+                    # Convert remote timestamp to float for comparison
+                    if isinstance(remote_file_info.modified, str):
+                        # Parse the date string (assuming format like "2024-01-01 12:00:00")
+                        from datetime import datetime
+                        remote_time = datetime.strptime(remote_file_info.modified, "%Y-%m-%d %H:%M:%S").timestamp()
+                    else:
+                        remote_time = remote_file_info.modified.timestamp() if hasattr(remote_file_info.modified, 'timestamp') else float(remote_file_info.modified)
+
+                    time_diff = abs(local_mtime - remote_time)
+                    time_different = time_diff > 60  # 1 minute tolerance
+                except:
+                    time_different = True  # If we can't compare times, assume different
+
+            files_identical = not size_different and not time_different
+
+            if files_identical and overwrite_mode == "ask":
+                # Files are identical, no need to upload
+                if log_callback:
+                    log_callback(f"Skipping {local_path.name} - identical file already exists")
+                if status_callback:
+                    status_callback(f"Skipped {local_path.name} (identical)")
+                return True
+            elif remote_file_exists and overwrite_mode == "ask":
+                # Ask user what to do
+                if not parent_widget:
+                    # If no parent widget, default to overwrite
+                    pass
+                else:
+                    from PyQt6.QtWidgets import QMessageBox
+                    from PyQt6.QtCore import Qt
+
+                    # Create detailed overwrite dialog
+                    msg_box = QMessageBox(parent_widget)
+                    msg_box.setIcon(QMessageBox.Icon.Question)
+                    msg_box.setWindowTitle("File Already Exists")
+                    msg_box.setText(f"The file '{local_path.name}' already exists on the remote server.")
+
+                    # Add file details
+                    local_size_str = format_size_func(local_size) if format_size_func else f"{local_size} bytes"
+                    remote_size_str = format_size_func(remote_file_info.size) if format_size_func else f"{remote_file_info.size} bytes"
+
+                    details = f"Local file: {local_size_str}"
+                    if hasattr(remote_file_info, 'modified') and remote_file_info.modified:
+                        details += f"\nRemote file: {remote_size_str}"
+
+                    msg_box.setDetailedText(details)
+
+                    # Add buttons
+                    overwrite_btn = msg_box.addButton("Overwrite", QMessageBox.ButtonRole.AcceptRole)
+                    skip_btn = msg_box.addButton("Skip", QMessageBox.ButtonRole.RejectRole)
+                    rename_btn = msg_box.addButton("Rename", QMessageBox.ButtonRole.ActionRole)
+
+                    msg_box.setDefaultButton(overwrite_btn)
+                    msg_box.exec()
+
+                    clicked_button = msg_box.clickedButton()
+
+                    if clicked_button == skip_btn:
+                        if log_callback:
+                            log_callback(f"Skipped {local_path.name} - user chose to skip")
+                        if status_callback:
+                            status_callback(f"Skipped {local_path.name}")
+                        return True
+                    elif clicked_button == rename_btn:
+                        # Generate new name
+                        from PyQt6.QtWidgets import QInputDialog
+                        base_name = local_path.stem
+                        extension = local_path.suffix
+                        counter = 1
+                        while True:
+                            new_name = f"{base_name} ({counter}){extension}"
+                            # Check if this name exists
+                            name_exists = False
+                            for file_info in files:
+                                if file_info.name == new_name:
+                                    name_exists = True
+                                    break
+                            if not name_exists:
+                                break
+                            counter += 1
+
+                        new_name, ok = QInputDialog.getText(parent_widget, "Rename File",
+                                                          "New name:", text=new_name)
+                        if ok and new_name:
+                            remote_path = f"{current_remote_path.rstrip('/')}/{new_name}".lstrip("./")
+                        else:
+                            # User cancelled rename, skip
+                            return True
+                    # If overwrite_btn clicked, continue with upload
+
         size_str = format_size_func(local_path.stat().st_size) if local_path.exists() and format_size_func else "Unknown"
-        
+
         if queue_callback:
             queue_callback("Upload", str(local_path), remote_path, size_str, "In Progress")
-        
+
         if log_callback:
             log_callback(f"Uploading file: {local_path.name} ({size_str}) to {remote_path}")
-        
+
+        # Upload file
         manager.upload_file(str(local_path), remote_path)
-        
+
         if log_callback:
             log_callback(f"File uploaded successfully: {local_path.name} -> {remote_path}", "success")
         if status_callback:

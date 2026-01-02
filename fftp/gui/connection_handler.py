@@ -80,33 +80,20 @@ def handle_connection_finished(worker, success, msg, config, manager_ref,
             disconnect_action.setEnabled(True)
         if disconnect_btn:
             disconnect_btn.setEnabled(True)
+
+        # Load the remote tree for directory navigation
+        if hasattr(worker, 'tab') and worker.tab:
+            worker.tab.load_remote_tree()
         if connect_btn:
             connect_btn.setText("Connected")
-            connect_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #27ae60;
-                    color: #ffffff;
-                    font-weight: 600;
-                    padding: 9px 20px;
-                    border-radius: 5px;
-                    font-size: 12px;
-                }
-                QPushButton:hover {
-                    background-color: #229954;
-                }
-                QPushButton:pressed {
-                    background-color: #1e8449;
-                }
-            """)
+            connect_btn.setProperty("class", "success")
+            connect_btn.style().unpolish(connect_btn)
+            connect_btn.style().polish(connect_btn)
         if log_callback:
             log_callback(f"Connection established, loading remote files from: {current_remote_path_ref[0]}")
         if refresh_callback:
-            if log_callback:
-                log_callback("CONNECTION DEBUG: Calling refresh_callback to load remote files")
             try:
                 refresh_callback()
-                if log_callback:
-                    log_callback("CONNECTION DEBUG: refresh_callback completed successfully")
                 # Add a fallback refresh after a short delay to ensure files are loaded
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(500, lambda: refresh_callback() if refresh_callback else None)
@@ -125,26 +112,9 @@ def handle_connection_finished(worker, success, msg, config, manager_ref,
             disconnect_btn.setEnabled(False)
         if connect_btn:
             connect_btn.setText("Connect")
-            connect_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3498db;
-                    color: #ffffff;
-                    font-weight: 600;
-                    padding: 9px 20px;
-                    border-radius: 5px;
-                    font-size: 12px;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:pressed {
-                    background-color: #21618c;
-                }
-                QPushButton:disabled {
-                    background-color: #bdc3c7;
-                    color: #7f8c8d;
-                }
-            """)
+            connect_btn.setProperty("class", "primary")
+            connect_btn.style().unpolish(connect_btn)
+            connect_btn.style().polish(connect_btn)
         error_msg = f"Failed to connect to {config.host}:\n\n{msg}\n\nPlease check:\n• Host and port are correct\n• Username and password are valid\n• Server is accessible\n• Firewall is not blocking the connection"
         QMessageBox.critical(None, "Connection Error", error_msg)
 
@@ -180,26 +150,9 @@ def disconnect(manager, connection_worker, disconnect_action, remote_table,
             if connect_btn:
                 connect_btn.setText("Connect")
                 connect_btn.setEnabled(True)
-                connect_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #3498db;
-                        color: #ffffff;
-                        font-weight: 600;
-                        padding: 9px 20px;
-                        border-radius: 5px;
-                        font-size: 12px;
-                    }
-                    QPushButton:hover {
-                        background-color: #2980b9;
-                    }
-                    QPushButton:pressed {
-                        background-color: #21618c;
-                    }
-                    QPushButton:disabled {
-                        background-color: #bdc3c7;
-                        color: #7f8c8d;
-                    }
-                """)
+                connect_btn.setProperty("class", "primary")
+                connect_btn.style().unpolish(connect_btn)
+                connect_btn.style().polish(connect_btn)
             return True
         except Exception as e:
             error_msg = f"Error disconnecting: {str(e)}"

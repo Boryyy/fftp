@@ -70,36 +70,39 @@ class TransferEngine(QObject):
             return
 
         try:
-            # Ensure remote directory exists
+            # Use the high-level upload_file function with overwrite checking
+            from .file_operations import upload_file
+
+            # Determine the remote directory path
             remote_dir = os.path.dirname(self.remote_file)
-            if remote_dir and remote_dir != ".":
-                tab.manager.create_directory(remote_dir)
+            if not remote_dir or remote_dir == ".":
+                remote_dir = tab.current_remote_path if tab.current_remote_path != "." else "/"
 
-            # Upload file with speed limiting
-            file_size = local_path.stat().st_size
-            bytes_transferred = 0
+            # Create a simple progress callback
+            def progress_callback(current, total):
+                if not self.cancelled and not self.paused:
+                    self.progress_updated.emit(self.queue_row, current, total)
 
-            with open(local_path, 'rb') as f:
-                while not self.cancelled and not self.paused:
-                    chunk = f.read(self.chunk_size)
-                    if not chunk:
-                        break
-
-                    # Apply speed limiting
-                    self._apply_speed_limit(len(chunk))
-
-                    # Write chunk to remote (this is a simplified version)
-                    # In a real implementation, you'd use the manager's upload method
-                    # For now, we'll just simulate the transfer
-                    bytes_transferred += len(chunk)
-
-                    # Update progress
-                    self.progress_updated.emit(self.queue_row, bytes_transferred, file_size)
+            success = upload_file(
+                tab.manager,
+                local_path,
+                remote_dir,
+                log_callback=self.parent.log,
+                status_callback=lambda msg: None,  # Don't show status during transfer
+                queue_callback=None,  # Don't add to queue again
+                move_completed_callback=None,
+                refresh_callback=None,
+                format_size_func=self.parent.format_size if hasattr(self.parent, 'format_size') else None,
+                parent_widget=self.parent,
+                overwrite_mode=self.parent.upload_overwrite_mode if hasattr(self.parent, 'upload_overwrite_mode') else "ask"
+            )
 
             if self.cancelled:
                 self.transfer_cancelled.emit(self.queue_row)
-            else:
+            elif success:
                 self.transfer_completed.emit(self.queue_row, True, "Upload completed")
+            else:
+                self.transfer_completed.emit(self.queue_row, False, "Upload failed")
 
         except Exception as e:
             self.transfer_completed.emit(self.queue_row, False, f"Upload failed: {e}")

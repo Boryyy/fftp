@@ -19,6 +19,7 @@ class QueuePanel(QWidget):
 
         # Initialize queue tables
         self.active_queue_table = None
+        self.failed_queue_table = None
         self.completed_queue_table = None
         self.queue_tabs = None
 
@@ -27,21 +28,13 @@ class QueuePanel(QWidget):
     def init_ui(self):
         """Initialize the queue panel UI"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(0, 0, 0, 0) # Zero margins for density
 
-        # Queue header with controls
-        queue_header = QHBoxLayout()
-
-        queue_label = QLabel("Transfer Queue")
-        queue_label.setStyleSheet("font-weight: 600; color: #2c3e50;")
-        queue_header.addWidget(queue_label)
-
-        queue_header.addStretch()
-
-        # Process Queue button removed as per user request
-        # Clear Queue button removed as per user request
-
-        layout.addLayout(queue_header)
+        # No header label needed, tabs act as header
+        # queue_header = QHBoxLayout()
+        # queue_label = QLabel("Transfer Queue")
+        # queue_layout.addWidget(queue_label)
+        # layout.addLayout(queue_header)
 
         # Queue tabs (Active/Completed)
         self.queue_tabs = QTabWidget()
@@ -54,61 +47,48 @@ class QueuePanel(QWidget):
         self.active_queue_table.setColumnCount(5)
         self.active_queue_table.setHorizontalHeaderLabels(["Direction", "Local File", "Remote File", "Size", "Status"])
         self.active_queue_table.setAlternatingRowColors(True)
-        self.active_queue_table.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #bdc3c7;
-                selection-background-color: #3498db;
-                selection-color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #bdc3c7;
-                font-weight: 600;
-            }
-        """)
-        self.active_queue_table.setColumnWidth(0, 80)
-        self.active_queue_table.setColumnWidth(1, 200)
-        self.active_queue_table.setColumnWidth(2, 200)
-        self.active_queue_table.setColumnWidth(3, 80)
-        self.active_queue_table.setColumnWidth(4, 100)
+        # Style is now managed globally by ThemeManager
 
         active_layout.addWidget(self.active_queue_table)
-        self.queue_tabs.addTab(active_tab, "Active")
+        self.queue_tabs.addTab(active_tab, "Queued files")
+        
+        # Failed transfers tab
+        failed_tab = QWidget()
+        failed_layout = QVBoxLayout(failed_tab)
+        failed_layout.setContentsMargins(0,0,0,0)
+        
+        self.failed_queue_table = QTableWidget()
+        self.failed_queue_table.setColumnCount(5)
+        self.failed_queue_table.setHorizontalHeaderLabels(["Direction", "Local File", "Remote File", "Size", "Error"])
+        self.failed_queue_table.setAlternatingRowColors(True)
+        # Apply standard table style...
+        self.failed_queue_table.verticalHeader().setVisible(False)
+        self.failed_queue_table.horizontalHeader().setStretchLastSection(True)
+        
+        failed_layout.addWidget(self.failed_queue_table)
+        self.queue_tabs.addTab(failed_tab, "Failed transfers")
 
-        # Completed transfers tab
+        # Successful transfers tab (Renamed from Completed)
         completed_tab = QWidget()
         completed_layout = QVBoxLayout(completed_tab)
+        completed_layout.setContentsMargins(0,0,0,0)
 
         self.completed_queue_table = QTableWidget()
         self.completed_queue_table.setColumnCount(5)
         self.completed_queue_table.setHorizontalHeaderLabels(["Direction", "Local File", "Remote File", "Size", "Time"])
         self.completed_queue_table.setAlternatingRowColors(True)
-        self.completed_queue_table.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #bdc3c7;
-                selection-background-color: #3498db;
-                selection-color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #bdc3c7;
-                font-weight: 600;
-            }
-        """)
+        # ... style ...
+        
+        # Apply columns widths
         self.completed_queue_table.setColumnWidth(0, 80)
         self.completed_queue_table.setColumnWidth(1, 200)
         self.completed_queue_table.setColumnWidth(2, 200)
         self.completed_queue_table.setColumnWidth(3, 80)
-        self.completed_queue_table.setColumnWidth(4, 120)
+        # Last column stretches
+        self.completed_queue_table.horizontalHeader().setStretchLastSection(True)
 
         completed_layout.addWidget(self.completed_queue_table)
-        self.queue_tabs.addTab(completed_tab, "Completed")
+        self.queue_tabs.addTab(completed_tab, "Successful transfers")
 
         layout.addWidget(self.queue_tabs)
 
@@ -131,6 +111,19 @@ class QueuePanel(QWidget):
         # Auto-start transfer if queue processing is enabled
         if hasattr(self.parent, 'auto_process_queue') and self.parent.auto_process_queue:
             self.parent.process_next_transfer()
+
+    def add_to_failed_queue(self, direction, local_file, remote_file, size, error_msg):
+        """Add transfer to failed queue"""
+        if not self.failed_queue_table:
+            return
+
+        row = self.failed_queue_table.rowCount()
+        self.failed_queue_table.insertRow(row)
+        self.failed_queue_table.setItem(row, 0, QTableWidgetItem(direction))
+        self.failed_queue_table.setItem(row, 1, QTableWidgetItem(local_file))
+        self.failed_queue_table.setItem(row, 2, QTableWidgetItem(remote_file))
+        self.failed_queue_table.setItem(row, 3, QTableWidgetItem(size))
+        self.failed_queue_table.setItem(row, 4, QTableWidgetItem(error_msg))
 
     def move_to_completed(self, row):
         """Move transfer from active to completed queue"""
@@ -157,7 +150,7 @@ class QueuePanel(QWidget):
         self.active_queue_table.removeRow(row)
 
         # Process next transfer if available
-        if hasattr(self.parent, 'auto_process_queue') and self.parent.auto_process_queue:
+        if hasattr(self.parent, 'process_next_transfer'):
             self.parent.process_next_transfer()
 
     def clear_completed_queue(self):

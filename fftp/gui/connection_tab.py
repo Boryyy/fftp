@@ -34,154 +34,126 @@ class ConnectionTab(QWidget):
         self.init_ui()
     
     def init_ui(self):
-        """Initialize UI for this connection tab"""
+        """Initialize the remote file panel UI - Aligned with LocalFilePanel"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        remote_group = QGroupBox("Remote site")
-        remote_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: 700;
-                font-size: 13px;
-                border: 2px solid #bdc3c7;
-                border-radius: 6px;
-                margin-top: 14px;
-                padding-top: 18px;
-                background-color: #ffffff;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 14px;
-                padding: 0 8px;
-                background-color: #ffffff;
-                color: #3498db;
-            }
-        """)
-        remote_layout = QVBoxLayout(remote_group)
-        remote_layout.setContentsMargins(8, 8, 8, 8)
-        remote_layout.setSpacing(4)
-        
+        layout.setContentsMargins(0, 0, 0, 0) # Removed 2px left margin for perfect parity
+
+        remote_container = QWidget()
+        remote_layout = QVBoxLayout(remote_container)
+        remote_layout.setContentsMargins(0, 0, 0, 0)
+        remote_layout.setSpacing(2)
+
+        # Path navigation bar - Identical to Local
         remote_path_layout = QHBoxLayout()
-        remote_path_layout.setSpacing(6)
-        path_label = QLabel("Remote site:")
-        path_label.setMinimumWidth(85)
-        path_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px;")
-        remote_path_layout.addWidget(path_label)
+        remote_path_layout.setContentsMargins(2, 2, 2, 2)
+        remote_path_layout.setSpacing(4)
+
         self.remote_path_edit = QLineEdit()
         self.remote_path_edit.setText(self.current_remote_path)
-        self.remote_path_edit.setStyleSheet("font-size: 12px; padding: 8px 12px; border: 2px solid #bdc3c7; border-radius: 5px;")
+        self.remote_path_edit.returnPressed.connect(self.navigate_remote_path)
+        self.remote_path_edit.setPlaceholderText("Remote Path")
+        self.remote_path_edit.setMinimumWidth(200)
         remote_path_layout.addWidget(self.remote_path_edit, 1)
-        remote_up_btn = QPushButton("↑")
-        remote_up_btn.setMaximumWidth(44)
-        remote_up_btn.setMinimumHeight(34)
-        remote_up_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                font-weight: 600;
-                font-size: 14px;
-                color: #2c3e50;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-                border-color: #95a5a6;
-            }
-            QPushButton:pressed {
-                background-color: #bdc3c7;
-            }
-        """)
+
+        # Up button - Compact but visible
+        remote_up_btn = QPushButton("Up")
+        remote_up_btn.setFixedWidth(40)
+        remote_up_btn.setMinimumHeight(24)
+        remote_up_btn.setToolTip("Go up one directory")
+        remote_up_btn.clicked.connect(self.remote_up)
         self.remote_up_btn = remote_up_btn
         remote_path_layout.addWidget(remote_up_btn)
 
-        # Add refresh and create folder buttons
+        # Refresh button - Visible
         remote_refresh_btn = QPushButton("Refresh")
-        remote_refresh_btn.setMaximumWidth(44)
-        remote_refresh_btn.setMinimumHeight(34)
+        remote_refresh_btn.setFixedWidth(65)
+        remote_refresh_btn.setMinimumHeight(24)
         remote_refresh_btn.setToolTip("Refresh remote files")
-        remote_refresh_btn.setProperty("class", "secondary")
         remote_refresh_btn.clicked.connect(self.load_remote_files)
         remote_path_layout.addWidget(remote_refresh_btn)
 
+        # New Folder button - Extra but styled identical
         remote_new_folder_btn = QPushButton("New Folder")
-        remote_new_folder_btn.setMaximumWidth(44)
-        remote_new_folder_btn.setMinimumHeight(34)
+        remote_new_folder_btn.setFixedWidth(85)
+        remote_new_folder_btn.setMinimumHeight(24)
         remote_new_folder_btn.setToolTip("Create new folder")
-        remote_new_folder_btn.setProperty("class", "secondary")
         remote_new_folder_btn.clicked.connect(lambda: self.main_window.create_remote_folder())
         remote_path_layout.addWidget(remote_new_folder_btn)
 
         remote_layout.addLayout(remote_path_layout)
 
-        # Remote file browser 
-        remote_browser = QSplitter(Qt.Orientation.Horizontal)
+        # Remote file browser browser - Splitter identical to Local
+        self.remote_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Remote tree view
         self.remote_tree = QTreeWidget()
         self.remote_tree.setHeaderHidden(True)
         self.remote_tree.setRootIsDecorated(True)
         self.remote_tree.setAnimated(True)
-        self.remote_tree.setIndentation(15)
-        self.remote_tree.setStyleSheet("""
-            QTreeWidget {
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #ffffff;
-                font-size: 10px;
-            }
-            QTreeWidget::item {
-                padding: 3px;
-                border: none;
-                color: #2c3e50;
-            }
-            QTreeWidget::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTreeWidget::item:hover {
-                background-color: #ecf0f1;
-            }
-        """)
+        self.remote_tree.setIndentation(20) # Match LocalFilePanel indentation
+        self.remote_tree.setRootIsDecorated(True)
         self.remote_tree.itemExpanded.connect(self.on_remote_tree_expanded)
         self.remote_tree.itemClicked.connect(self.on_remote_tree_clicked)
         self.remote_tree.itemDoubleClicked.connect(self.on_remote_tree_double_clicked)
         self.remote_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.remote_tree.customContextMenuRequested.connect(self.show_remote_tree_context_menu)
-        remote_browser.addWidget(self.remote_tree)
+        self.remote_tree.setMinimumHeight(150)
+        self.remote_tree.setMinimumWidth(50)
+
+        self.remote_splitter.addWidget(self.remote_tree)
 
         # Remote file list
-        drag_drop_enabled = True
         self.remote_table = DragDropTableWidget(
             parent=self,
             drop_callback=None,  # Will be set by main window
             drag_callback=self._handle_remote_drag,
-            enabled=drag_drop_enabled
+            enabled=True
         )
         self.remote_table.setColumnCount(4)
         self.remote_table.setHorizontalHeaderLabels(["Filename", "Filesize", "Filetype", "Last modified"])
         self.remote_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.remote_table.setAlternatingRowColors(True)
         self.remote_table.setSortingEnabled(True)
-        self.remote_table.setSortingEnabled(True)
-        # Table styling is handled by the global theme
-        self.remote_table.setColumnWidth(0, 200)
+
+        # Configure scroll bars
+        self.remote_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.remote_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Set minimum height
+        self.remote_table.setMinimumHeight(200)
+        self.remote_table.setWordWrap(False)
+
+        # Column widths identical to Local
+        self.remote_table.setColumnWidth(0, 280)
         self.remote_table.setColumnWidth(1, 80)
-        self.remote_table.setColumnWidth(2, 80)
+        self.remote_table.setColumnWidth(2, 100)
         self.remote_table.setColumnWidth(3, 120)
+
+        self.remote_table.horizontalHeader().setMinimumSectionSize(60)
+        self.remote_table.horizontalHeader().setMaximumSectionSize(400)
+
+        # Section resize modes
+        self.remote_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.remote_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.remote_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.remote_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+
+        self.remote_table.horizontalHeader().setStretchLastSection(False)
 
         # Connect events
         self.remote_table.doubleClicked.connect(self.on_remote_table_double_click)
+        self.remote_table.keyPressEvent = self._remote_table_key_press
         self.remote_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.remote_table.customContextMenuRequested.connect(self._show_remote_context_menu)
         self.remote_table.itemSelectionChanged.connect(self._on_remote_selection_changed)
 
-        remote_browser.addWidget(self.remote_table)
+        self.remote_splitter.addWidget(self.remote_table)
 
-        remote_browser.setSizes([150, 350])
-        remote_layout.addWidget(remote_browser)
+        # Set splitter proportions (Directories above, Files below)
+        self.remote_splitter.setSizes([200, 400])
+        remote_layout.addWidget(self.remote_splitter)
         
-        layout.addWidget(remote_group)
+        layout.addWidget(remote_container)
     
     def get_tab_title(self) -> str:
         """Get title for this tab"""
@@ -291,63 +263,126 @@ class ConnectionTab(QWidget):
         # Implementation for table context menu
         pass
 
+    def navigate_remote_path(self):
+        """Navigate to custom remote path"""
+        if not self.manager:
+            return
+        path = self.remote_path_edit.text().strip()
+        if not path:
+            path = "/"
+        # Try to navigate to the path
+        try:
+            # Check if path exists by listing it
+            files = self.manager.list_files(path)
+            self.current_remote_path = path
+            # Update main window's current path too
+            if hasattr(self.main_window, 'current_remote_path'):
+                self.main_window.current_remote_path = path
+            self.load_remote_files()
+        except Exception:
+            # If path doesn't exist or is invalid, stay on current path
+            self.remote_path_edit.setText(self.current_remote_path)
+
+    def remote_up(self):
+        """Navigate up in remote directory"""
+        if not self.manager:
+            return
+
+        path_parts = self.current_remote_path.rstrip('/').split('/')
+        if len(path_parts) > 1:
+            new_path = '/'.join(path_parts[:-1]) or '/'
+        else:
+            new_path = '/'
+
+        # Try to navigate up
+        try:
+            files = self.manager.list_files(new_path)
+            self.current_remote_path = new_path
+            self.remote_path_edit.setText(new_path)
+            # Update main window's current path too
+            if hasattr(self.main_window, 'current_remote_path'):
+                self.main_window.current_remote_path = new_path
+            self.load_remote_files()
+        except Exception:
+            # If can't go up, stay on current path
+            pass
+
     def on_remote_table_double_click(self, index):
         """Handle remote table double-click"""
         row = index.row()
         if row >= 0:
             item = self.remote_table.item(row, 0)
             if item:
+                filename = item.text()
                 file_data = item.data(Qt.ItemDataRole.UserRole)
-                if file_data and hasattr(file_data, 'is_dir') and file_data.is_dir:
+
+                if filename == "..":
+                    # Go up one directory
+                    self.remote_up()
+                elif file_data and hasattr(file_data, 'is_dir') and file_data.is_dir:
                     # Navigate into directory
                     new_path = file_data.path
                     self.current_remote_path = new_path
                     self.remote_path_edit.setText(new_path)
-                    self.load_remote_files()
+                    # Update main window's current path too
+                    if hasattr(self.main_window, 'current_remote_path'):
+                        self.main_window.current_remote_path = new_path
+                    # Navigate with sync if enabled, otherwise just load
+                    if self.main_window.synchronized_browsing:
+                        self.main_window.navigate_remote_with_sync(new_path)
+                    else:
+                        self.load_remote_files()
+
+    def _remote_table_key_press(self, event):
+        """Handle key press events for remote table (Enter navigation)"""
+        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            # Get current selection
+            current_row = self.remote_table.currentRow()
+            if current_row >= 0:
+                item = self.remote_table.item(current_row, 0)
+                if item:
+                    filename = item.text()
+                    file_data = item.data(Qt.ItemDataRole.UserRole)
+
+                    if filename == "..":
+                        # Go up one directory
+                        self.remote_up()
+                    elif file_data and hasattr(file_data, 'is_dir') and file_data.is_dir:
+                        # Navigate into directory
+                        new_path = file_data.path
+                        self.current_remote_path = new_path
+                        self.remote_path_edit.setText(new_path)
+                        # Update main window's current path too
+                        if hasattr(self.main_window, 'current_remote_path'):
+                            self.main_window.current_remote_path = new_path
+                        self.load_remote_files()
+        else:
+            # Call the original key press event for other keys
+            QTableWidget.keyPressEvent(self.remote_table, event)
 
     # Helper methods (stubs - need to be implemented)
     def load_remote_files(self):
         """Load remote files for current path"""
         import logging
         logger = logging.getLogger(__name__)
-        
-        logger.info(f"TAB DEBUG: load_remote_files called, manager: {self.manager}, connected: {self.is_connected() if self.manager else False}")
-        logger.info(f"TAB DEBUG: Current remote path: {self.current_remote_path}")
-        logger.info(f"TAB DEBUG: Remote table exists: {hasattr(self, 'remote_table')}")
-        
+
         if not self.manager or not self.is_connected():
-            logger.warning("TAB DEBUG: Not connected, clearing table")
             if hasattr(self, 'remote_table'):
                 self.remote_table.setRowCount(0)
             return
 
         if not hasattr(self, 'remote_table'):
-            logger.error("TAB ERROR: remote_table does not exist!")
             return
 
         try:
             self.remote_table.setSortingEnabled(False)  # Disable sorting during load
             self.remote_table.setRowCount(0)
 
-            logger.info(f"TAB DEBUG: Calling manager.list_files with path: {self.current_remote_path}")
             files = self.manager.list_files(self.current_remote_path)
-            logger.info(f"TAB DEBUG: manager.list_files returned {len(files) if files else 0} files")
-            
-            if files:
-                for i, f in enumerate(files[:5]):  # Log first 5 files
-                    logger.info(f"TAB DEBUG: File {i}: name={f.name}, size={f.size}, is_dir={f.is_dir}, modified={f.modified}")
 
             if not files:
-                print("TAB DEBUG: No files returned, showing empty message")
-                # Show empty message
-                self.remote_table.setRowCount(1)
-                empty_item = QTableWidgetItem("(Directory is empty - Connection is working)")
-                empty_item.setData(Qt.ItemDataRole.UserRole, None)
-                self.remote_table.setItem(0, 0, empty_item)
-                for col in range(1, 4):
-                    empty_item = QTableWidgetItem("")
-                    empty_item.setData(Qt.ItemDataRole.UserRole, None)
-                    self.remote_table.setItem(0, col, empty_item)
+                # Empty directory - just clear the table
+                self.remote_table.setRowCount(0)
                 self.remote_table.setSortingEnabled(True)
                 return
 
@@ -373,41 +408,51 @@ class ConnectionTab(QWidget):
 
                 visible_files.append(file)
 
+            # Add parent directory entry (..) if not at root
+            if self.current_remote_path and self.current_remote_path != "/" and self.current_remote_path != ".":
+                self.remote_table.insertRow(0)
+                parent_item = QTableWidgetItem("..")
+                self.remote_table.setItem(0, 0, parent_item)
+                self.remote_table.setItem(0, 1, QTableWidgetItem(""))
+                self.remote_table.setItem(0, 2, QTableWidgetItem("Parent Directory"))
+                self.remote_table.setItem(0, 3, QTableWidgetItem(""))
+
+                # Create a mock file object for parent directory
+                class ParentDir:
+                    def __init__(self, path):
+                        self.name = ".."
+                        self.path = path
+                        self.is_dir = True
+                        self.size = 0
+                        self.modified = ""
+                parent_dir = ParentDir("/".join(self.current_remote_path.split("/")[:-1]) or "/")
+                self.remote_table.item(0, 0).setData(Qt.ItemDataRole.UserRole, parent_dir)
+
             # Populate table with visible files
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"TAB DEBUG: Populating table with {len(visible_files)} visible files")
-            for row, file in enumerate(visible_files):
-                logger.info(f"TAB DEBUG: Adding file {row}: {file.name} (size={file.size}, is_dir={file.is_dir})")
+            for i, file in enumerate(visible_files):
+                row = i + (1 if self.current_remote_path and self.current_remote_path != "/" and self.current_remote_path != "." else 0)
                 self.remote_table.insertRow(row)
 
-                # Use proper icons from theme manager
-                try:
-                    if self.main_window and hasattr(self.main_window, 'icon_theme_manager'):
-                        icon_theme_manager = self.main_window.icon_theme_manager
-                        icon = icon_theme_manager.get_file_icon(file.name, is_dir=file.is_dir)
-                        name_item = QTableWidgetItem(icon, file.name)
-                        logger.debug(f"TAB DEBUG: Created item with icon for {file.name}")
-                    else:
-                        # Fallback to text-only if icon_theme_manager not available
-                        name_item = QTableWidgetItem(file.name)
-                        logger.warning(f"TAB DEBUG: icon_theme_manager not available, using text-only")
-                except Exception as e:
-                    logger.warning(f"TAB DEBUG: Icon loading failed for {file.name}: {e}")
-                    # Fallback to text-only if icon loading fails
-                    name_item = QTableWidgetItem(file.name)
+                # Simple text-only display (no icons needed for clean UI)
+                name_item = QTableWidgetItem(file.name)
 
                 # Text color will be handled by theme, don't force black
                 self.remote_table.setItem(row, 0, name_item)
 
                 if file.is_dir:
-                    size_item = QTableWidgetItem("<DIR>")
+                    size_item = QTableWidgetItem("")
                     size_item.setData(Qt.ItemDataRole.UserRole, 0)
                 else:
-                    size_str = self.parent().format_size(file.size) if hasattr(self.parent(), 'format_size') else str(file.size)
-                    from .table_managers import NumericTableWidgetItem
-                    size_item = NumericTableWidgetItem(size_str)
-                    size_item.setData(Qt.ItemDataRole.UserRole, file.size)
+                    try:
+                        from ..table_managers import format_size, NumericTableWidgetItem
+                        size_str = format_size(file.size)
+                        size_item = NumericTableWidgetItem(size_str)
+                        size_item.setData(Qt.ItemDataRole.UserRole, file.size)
+                    except ImportError:
+                        # Fallback if import fails
+                        size_str = f"{file.size}"
+                        size_item = QTableWidgetItem(size_str)
+                        size_item.setData(Qt.ItemDataRole.UserRole, file.size)
 
                 self.remote_table.setItem(row, 1, size_item)
 
@@ -421,13 +466,11 @@ class ConnectionTab(QWidget):
 
             self.remote_table.setSortingEnabled(True)
             self.remote_table.resizeColumnsToContents()
+            self.remote_table.viewport().update()  # Force refresh
+            self.remote_table.repaint()  # Force repaint
+
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            error_msg = f"Error loading remote files: {e}"
-            logger.error(f"TAB ERROR: {error_msg}")
-            logger.error(f"TAB ERROR TRACEBACK:\n{traceback.format_exc()}")
             # Show error in table
             if hasattr(self, 'remote_table'):
                 self.remote_table.setRowCount(1)

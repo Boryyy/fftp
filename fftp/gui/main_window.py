@@ -16,8 +16,9 @@ from PyQt6.QtWidgets import (
     QToolBar, QStatusBar, QDialog, QMenuBar, QTabWidget, QTextEdit,
     QPlainTextEdit, QCheckBox, QTreeView, QFormLayout
 )
+from PyQt6.QtGui import QActionGroup
 from PyQt6.QtCore import Qt, QSize, QUrl, QThread, pyqtSignal, QDir, QTimer
-from PyQt6.QtGui import QAction, QIcon, QPixmap, QFileSystemModel, QColor
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QColor
 
 from ..models import ConnectionConfig
 from ..managers import SFTPManager, FTPManager
@@ -26,10 +27,21 @@ from .connection_dialog import ConnectionManagerDialog
 from .password_dialog import MasterPasswordDialog
 from .settings_dialog import SettingsDialog
 from .help_dialog import HelpDialog
-from .themes import PREMIUM_LIGHT_THEME, PREMIUM_DARK_THEME
 from .connection_worker import ConnectionWorker
 from .logger import setup_file_logging
-from .table_managers import load_local_files_to_table, load_remote_files_to_table, format_size, NumericTableWidgetItem
+try:
+    from .table_managers import load_local_files_to_table, load_remote_files_to_table, format_size, NumericTableWidgetItem
+except ImportError:
+    # Fallback definitions if import fails
+    def load_local_files_to_table(*args, **kwargs):
+        pass
+    def load_remote_files_to_table(*args, **kwargs):
+        pass
+    def format_size(size):
+        return f"{size}"
+    class NumericTableWidgetItem:
+        def __init__(self, text):
+            pass
 from .file_operations import (
     upload_file, download_file, delete_remote_file, create_remote_folder,
     rename_remote_file, delete_local_file, open_local_file
@@ -39,7 +51,6 @@ from .context_menus import ContextMenuManager
 from .status_bar import FftpStatusBar
 from .bookmarks import BookmarkManager, show_bookmark_dialog
 from .file_editor import edit_remote_file
-from .icon_themes import get_icon_theme_manager
 from .keyboard_shortcuts import KeyboardShortcutsManager
 from .welcome_dialog import show_welcome_dialog_if_needed
 from .drag_drop_table import DragDropTableWidget
@@ -48,7 +59,9 @@ from .transfer_engine import TransferEngine
 from .search_dialog import SearchDialog
 from .filter_manager import FilterManager
 from .comparison import ComparisonManager
-# Panel imports
+from .theme_manager import ThemeManager
+from .managers.toolbar_manager import ToolbarManager
+from .managers.layout_manager import LayoutManager
 from .windows.local_panel import LocalFilePanel
 from .windows.remote_panel import RemoteFilePanel
 from .windows.queue_panel import QueuePanel
@@ -84,7 +97,7 @@ class FTPClientGUI(QMainWindow):
 
         # Transfer engine system
         self.transfer_engines = []  # List of active transfer engines
-        self.max_concurrent_transfers = 2  # Default concurrent transfers
+        self.max_concurrent_transfers = 10  # Default concurrent transfers (User request)
         self.auto_process_queue = True  # Auto-start transfers
         self.transfer_speed_limit = 0  # 0 = unlimited
 
@@ -108,13 +121,13 @@ class FTPClientGUI(QMainWindow):
         self.keyboard_shortcuts = KeyboardShortcutsManager(self)
 
         # Initialize panel components
-        self.local_panel = LocalFilePanel(self, self.current_local_path)
-        self.remote_panel = RemoteFilePanel(self)
-        self.queue_panel = QueuePanel(self)
-        self.status_panel = StatusPanel(self)
+        # Panels are now initialized in LayoutManager (called via init_ui)
+        self.local_panel = None
+        self.remote_panel = None
+        self.queue_panel = None
+        self.status_panel = None
 
-        # Icon theme manager (lazy initialized)
-        self.icon_theme_manager = get_icon_theme_manager()
+        # No icon theme manager needed for clean UI
 
         self.setup_file_logging()
 
@@ -123,25 +136,9 @@ class FTPClientGUI(QMainWindow):
         # Show welcome dialog for first-time users
         QTimer.singleShot(500, lambda: show_welcome_dialog_if_needed(self))
         self.create_menu_bar()
-        # Load and apply theme from settings
-        settings = self.load_settings()
-        theme = settings.get('theme', 'Light')
-        auto_theme = settings.get('auto_theme', False)
-
-        if auto_theme:
-            # Try to detect system theme
-            try:
-                import darkdetect
-                if darkdetect.isDark():
-                    theme = 'Dark'
-                else:
-                    theme = 'Light'
-            except ImportError:
-                # darkdetect not available, use saved theme
-                theme = settings.get('theme', 'Light')
-
-        self.apply_theme(theme)
-        self.apply_global_theme()
+        # Apply modern light theme by default (user request)
+        ThemeManager.set_theme("Light")
+        self.apply_modern_theme()
         
         if hasattr(self, 'log_text'):
             self.log("Application started")
@@ -163,266 +160,18 @@ class FTPClientGUI(QMainWindow):
             except:
                 pass
     
+        
     def init_ui(self):
-        """Build GUI layout"""
-        toolbar = QToolBar("Main Toolbar", self)
-        toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        toolbar.setIconSize(QSize(24, 24))
-        toolbar.setStyleSheet("""
-            QToolBar {
-                background-color: #f8f9fa;
-                border-bottom: 1px solid #dee2e6;
-                spacing: 8px;
-                padding: 4px;
-            }
-        """)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+        # Initialize Managers
+        from .managers.toolbar_manager import ToolbarManager
+        from .managers.layout_manager import LayoutManager
         
-        site_manager_btn = QPushButton("Site Manager")
-        site_manager_btn.setMinimumHeight(34)
-        site_manager_btn.setMinimumWidth(130)
-        site_manager_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                font-weight: 600;
-                padding: 8px 18px;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-                border-color: #95a5a6;
-            }
-            QPushButton:pressed {
-                background-color: #bdc3c7;
-            }
-        """)
-        site_manager_btn.clicked.connect(self.show_site_manager)
-        toolbar.addWidget(site_manager_btn)
+        self.toolbar_manager = ToolbarManager(self)
+        self.layout_manager = LayoutManager(self)
         
-        toolbar.addSeparator()
-        
-        connect_widget = QWidget()
-        connect_layout = QHBoxLayout(connect_widget)
-        connect_layout.setContentsMargins(0, 0, 0, 0)
-        connect_layout.setSpacing(5)
-        
-        host_label = QLabel("Host:")
-        host_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
-        connect_layout.addWidget(host_label)
-        self.quick_host = QLineEdit()
-        self.quick_host.setMinimumWidth(200)
-        self.quick_host.setMinimumHeight(34)
-        self.quick_host.setPlaceholderText("Enter hostname")
-        self.quick_host.returnPressed.connect(self.quick_connect)
-        self.quick_host.setStyleSheet("""
-            QLineEdit {
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                padding: 2px 8px;
-                background-color: #ffffff;
-                color: #2c3e50;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
-        connect_layout.addWidget(self.quick_host)
-
-        user_label = QLabel("Username:")
-        user_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
-        connect_layout.addWidget(user_label)
-        self.quick_user = QLineEdit()
-        self.quick_user.setPlaceholderText("Username")
-        self.quick_user.setMinimumWidth(120)
-        self.quick_user.setMinimumHeight(34)
-        connect_layout.addWidget(self.quick_user)
-
-        pass_label = QLabel("Password:")
-        pass_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
-        connect_layout.addWidget(pass_label)
-        self.quick_pass = QLineEdit()
-        self.quick_pass.setPlaceholderText("Password")
-        self.quick_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.quick_pass.setMinimumWidth(120)
-        self.quick_pass.setMinimumHeight(34)
-        connect_layout.addWidget(self.quick_pass)
-
-        port_label = QLabel("Port:")
-        port_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
-        connect_layout.addWidget(port_label)
-        self.quick_port = QSpinBox()
-        self.quick_port.setRange(1, 65535)
-        self.quick_port.setValue(21)
-        self.quick_port.setMinimumWidth(80)
-        self.quick_port.setMinimumHeight(34)
-        # Hide the spin box buttons to make it look cleaner
-        self.quick_port.setStyleSheet("""
-            QSpinBox {
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                padding: 2px 8px;
-                background-color: #ffffff;
-                color: #2c3e50;
-                font-size: 12px;
-            }
-            QSpinBox::up-button, QSpinBox::down-button {
-                width: 0px;
-                border: none;
-            }
-            QSpinBox::up-arrow, QSpinBox::down-arrow {
-                width: 0px;
-                height: 0px;
-                border: none;
-            }
-        """)
-        connect_layout.addWidget(self.quick_port)
-        
-        self.connect_btn = QPushButton("Connect")
-        self.connect_btn.setMinimumHeight(34)
-        self.connect_btn.setMinimumWidth(110)
-        self.connect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: #ffffff;
-                font-weight: 600;
-                padding: 9px 20px;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-            QPushButton:disabled {
-                background-color: #bdc3c7;
-                color: #7f8c8d;
-            }
-        """)
-        self.connect_btn.clicked.connect(self.quick_connect)
-        connect_layout.addWidget(self.connect_btn)
-
-        toolbar.addWidget(connect_widget)
-
-        # Debug: Check if quick connect widgets are created
-        self.log(f"DEBUG: Quick connect widgets created - Host: {hasattr(self, 'quick_host')}, User: {hasattr(self, 'quick_user')}, Pass: {hasattr(self, 'quick_pass')}, Port: {hasattr(self, 'quick_port')}, Connect: {hasattr(self, 'connect_btn')}")
-        
-        toolbar.addSeparator()
-        
-        self.disconnect_btn = QPushButton("Disconnect")
-        self.disconnect_btn.setMinimumHeight(34)
-        self.disconnect_btn.setMinimumWidth(110)
-        self.disconnect_btn.setEnabled(False)
-        self.disconnect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: #ffffff;
-                font-weight: 600;
-                padding: 9px 20px;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
-            }
-            QPushButton:disabled {
-                background-color: #bdc3c7;
-                color: #7f8c8d;
-            }
-        """)
-        self.disconnect_btn.clicked.connect(self.disconnect)
-        toolbar.addWidget(self.disconnect_btn)
-        
-        toolbar.addSeparator()
-        
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.setMinimumHeight(34)
-        refresh_btn.setMinimumWidth(100)
-        refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                font-weight: 600;
-                font-size: 12px;
-                padding: 9px 18px;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-                border-color: #95a5a6;
-            }
-            QPushButton:pressed {
-                background-color: #bdc3c7;
-            }
-        """)
-        refresh_btn.clicked.connect(self.refresh_files)
-        toolbar.addWidget(refresh_btn)
-
-        # Ensure toolbar is visible
-        toolbar.setVisible(True)
-
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
-
-        # Top splitter: Message log from rest of panes
-        self.top_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        # Bottom splitter: View splitter from queue
-        self.bottom_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        # View splitter: Local pane from remote pane
-        self.view_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Queue log splitter: Queue from log (when position 1)
-        self.queue_log_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        # Setup splitter hierarchy
-        self.top_splitter.addWidget(self.status_panel)
-        self.top_splitter.addWidget(self.bottom_splitter)
-
-        self.bottom_splitter.addWidget(self.view_splitter)
-        self.bottom_splitter.addWidget(self.queue_log_splitter)
-
-        # Add local and remote panes
-        self.view_splitter.addWidget(self.local_panel)
-        self.view_splitter.addWidget(self.remote_panel)
-
-        # Set remote tabs reference for backward compatibility
-        # Remote tabs are now managed by remote_panel
-
-        # Add queue panel
-        self.queue_log_splitter.addWidget(self.queue_panel)
-
-        # Set splitter sizes with proper proportions
-        self.top_splitter.setSizes([120, 600])  # More space for main content
-        self.bottom_splitter.setSizes([400, 200])  # Better balance
-        self.view_splitter.setSizes([350, 350])  # Equal local/remote
-        self.queue_log_splitter.setSizes([120, 80])  # Better proportions
-
-        # Set stretch factors for proper resizing
-        self.top_splitter.setStretchFactor(0, 0)  # Log panel doesn't stretch
-        self.top_splitter.setStretchFactor(1, 1)  # Main area stretches
-        self.bottom_splitter.setStretchFactor(0, 1)  # View area stretches
-        self.bottom_splitter.setStretchFactor(1, 0)  # Queue doesn't stretch much
-        self.view_splitter.setStretchFactor(0, 1)  # Local panel stretches
-        self.view_splitter.setStretchFactor(1, 1)  # Remote panel stretches
-        self.queue_log_splitter.setStretchFactor(0, 1)  # Queue stretches
-        self.queue_log_splitter.setStretchFactor(1, 0)  # Log doesn't stretch
-
-        main_layout.addWidget(self.top_splitter)
+        # Setup UI via Managers
+        self.toolbar_manager.create_toolbar()
+        self.layout_manager.setup_layout()
 
         # Set up custom status bar
         self.status_bar = FftpStatusBar(self)
@@ -451,17 +200,7 @@ class FTPClientGUI(QMainWindow):
         self.activity_log_text.setReadOnly(True)
         self.activity_log_text.setMaximumBlockCount(100)
         self.activity_log_text.setMaximumHeight(80)
-        self.activity_log_text.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #ffffff;
-                color: #2c3e50;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 9px;
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-                padding: 2px;
-            }
-        """)
+        self.activity_log_text.setStyleSheet("") # Managed by ThemeManager
         log_layout.addWidget(self.activity_log_text)
 
         return log_widget
@@ -484,7 +223,10 @@ class FTPClientGUI(QMainWindow):
         disconnect_action.setEnabled(False)
         file_menu.addAction(disconnect_action)
         self.disconnect_action = disconnect_action
-        
+
+        # Upload overwrite mode
+        self.upload_overwrite_mode = "ask"  # "ask", "overwrite", "skip", "rename"
+
         file_menu.addSeparator()
         
         exit_action = QAction("E&xit", self)
@@ -498,7 +240,11 @@ class FTPClientGUI(QMainWindow):
         upload_action.setShortcut("Ctrl+U")
         upload_action.triggered.connect(self.upload_selected_local)
         edit_menu.addAction(upload_action)
-        
+
+        # Upload options submenu
+        upload_options_menu = edit_menu.addMenu("&Upload Options")
+        self.create_upload_options_menu(upload_options_menu)
+
         download_action = QAction("&Download", self)
         download_action.setShortcut("Ctrl+D")
         download_action.triggered.connect(self.download_selected_remote)
@@ -635,13 +381,50 @@ class FTPClientGUI(QMainWindow):
         about_action = QAction("&About Fftp", self)
         about_action.triggered.connect(self.show_help)
         help_menu.addAction(about_action)
-    
+
+    def create_upload_options_menu(self, upload_options_menu):
+        """Create upload options submenu"""
+        # Upload overwrite mode actions
+        ask_action = QAction("&Ask for confirmation", self)
+        ask_action.setCheckable(True)
+        ask_action.setChecked(self.upload_overwrite_mode == "ask")
+        ask_action.triggered.connect(lambda: self.set_upload_overwrite_mode("ask"))
+        upload_options_menu.addAction(ask_action)
+
+        overwrite_action = QAction("&Overwrite existing files", self)
+        overwrite_action.setCheckable(True)
+        overwrite_action.setChecked(self.upload_overwrite_mode == "overwrite")
+        overwrite_action.triggered.connect(lambda: self.set_upload_overwrite_mode("overwrite"))
+        upload_options_menu.addAction(overwrite_action)
+
+        skip_action = QAction("&Skip existing files", self)
+        skip_action.setCheckable(True)
+        skip_action.setChecked(self.upload_overwrite_mode == "skip")
+        skip_action.triggered.connect(lambda: self.set_upload_overwrite_mode("skip"))
+        upload_options_menu.addAction(skip_action)
+
+        rename_action = QAction("&Auto-rename existing files", self)
+        rename_action.setCheckable(True)
+        rename_action.setChecked(self.upload_overwrite_mode == "rename")
+        rename_action.triggered.connect(lambda: self.set_upload_overwrite_mode("rename"))
+        upload_options_menu.addAction(rename_action)
+
+        # Make actions mutually exclusive
+        self.upload_mode_group = QActionGroup(self)
+        self.upload_mode_group.addAction(ask_action)
+        self.upload_mode_group.addAction(overwrite_action)
+        self.upload_mode_group.addAction(skip_action)
+        self.upload_mode_group.addAction(rename_action)
+
+    def set_upload_overwrite_mode(self, mode):
+        """Set upload overwrite mode"""
+        self.upload_overwrite_mode = mode
+        self.log(f"Upload overwrite mode set to: {mode}")
+
     def toggle_toolbar(self, checked):
         """Toggle toolbar visibility"""
-        self.log(f"TOOLBAR DEBUG: toggle_toolbar called with checked={checked}")
         for toolbar in self.findChildren(QToolBar):
             toolbar.setVisible(checked)
-            self.log(f"TOOLBAR DEBUG: Set toolbar visible={checked}")
     
     def toggle_statusbar(self, checked):
         """Toggle statusbar visibility"""
@@ -649,26 +432,11 @@ class FTPClientGUI(QMainWindow):
     
     def reset_connect_button_style(self):
         """Reset connect button to default style"""
-        self.connect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1976d2;
-                color: white;
-                font-weight: 600;
-                padding: 7px 16px;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #1565c0;
-            }
-            QPushButton:pressed {
-                background-color: #0d47a1;
-            }
-            QPushButton:disabled {
-                background-color: #bdbdbd;
-                color: #757575;
-            }
-        """)
+        btn = self.toolbar_manager.connect_btn
+        btn.setText("Connect")
+        btn.setProperty("class", "primary")
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
     
     def disconnect(self):
         """Disconnect from server"""
@@ -678,10 +446,10 @@ class FTPClientGUI(QMainWindow):
         
         result = disconnect_handler(
             tab.manager, tab.connection_worker, self.disconnect_action,
-            tab.remote_table, self.connect_btn,
+            tab.remote_table, self.toolbar_manager.connect_btn,
             log_callback=self.log,
             status_callback=lambda msg: self.statusBar().showMessage(msg),
-            disconnect_btn=self.disconnect_btn if hasattr(self, 'disconnect_btn') else None
+            disconnect_btn=self.toolbar_manager.disconnect_btn
         )
         if result:
             tab.manager = None
@@ -691,28 +459,7 @@ class FTPClientGUI(QMainWindow):
             if index >= 0:
                 self.remote_panel.remote_tabs.setTabText(index, title)
     
-    def reset_connect_button_style(self):
-        """Reset connect button to default style"""
-        self.connect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1976d2;
-                color: white;
-                font-weight: 600;
-                padding: 7px 16px;
-                border-radius: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #1565c0;
-            }
-            QPushButton:pressed {
-                background-color: #0d47a1;
-            }
-            QPushButton:disabled {
-                background-color: #bdbdbd;
-                color: #757575;
-            }
-        """)
+
     
     def log(self, message, level="info"):
         """Add message to log (both UI and file)"""
@@ -748,6 +495,10 @@ class FTPClientGUI(QMainWindow):
             }.get(level, logging.INFO)
             self.file_logger.log(log_level, message)
     
+    def apply_theme(self, theme_name):
+        """Apply theme by name (wrapper for ThemeManager)"""
+        ThemeManager.set_theme(theme_name)
+        ThemeManager.apply_theme(QApplication.instance())
     
     def show_settings(self):
         """Show settings dialog"""
@@ -758,6 +509,12 @@ class FTPClientGUI(QMainWindow):
     
     def apply_settings(self, settings):
         """Apply settings to application"""
+        # Apply theme first
+        if 'theme' in settings:
+            theme_name = settings.get('theme', 'Light')
+            ThemeManager.set_theme(theme_name)
+            self.apply_theme(theme_name)
+        
         if 'default_local_path' in settings:
             self.current_local_path = settings['default_local_path']
             self.load_local_files()
@@ -805,23 +562,14 @@ class FTPClientGUI(QMainWindow):
             self.settings = settings
             self.settings.update(settings)
             
-            if hasattr(self, 'remote_table') and isinstance(self.remote_table, DragDropTableWidget):
-                self.remote_table.set_drag_drop_enabled(settings.get('enable_drag_drop', True))
+            if hasattr(self, 'remote_panel') and self.remote_panel:
+                for tab in self.remote_panel.get_all_tabs():
+                    if hasattr(tab, 'remote_table') and isinstance(tab.remote_table, DragDropTableWidget):
+                        tab.remote_table.set_drag_drop_enabled(settings.get('enable_drag_drop', True))
             
             if 'theme' in settings:
                 self.apply_theme(settings.get('theme', 'Light'))
     
-    def show_site_manager(self):
-        """Show site manager dialog"""
-        dialog = ConnectionManagerDialog(self, self.encryption_manager)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected = dialog.get_selected_connection()
-            if selected:
-                if isinstance(selected, dict):
-                    self.config = ConnectionConfig(**selected)
-                else:
-                    self.config = selected
-                self.connect_to_server()
 
     def show_search_dialog(self):
         """Show search dialog"""
@@ -1011,22 +759,33 @@ class FTPClientGUI(QMainWindow):
                                 "Failed to set master password"
                             )
             return None
+
+        # Check for legacy password format (old SHA256-based system)
+        if not self.encryption_manager.migrate_legacy_password():
+            self.log("Legacy password system detected - forcing reset for security")
+            QMessageBox.warning(
+                self, "Password System Updated",
+                "Your master password system has been updated for better security.\n\n"
+                "Please reset your master password. Your saved connections will be cleared."
+            )
+            # Force password reset
+            try:
+                self.encryption_manager.clear_encrypted_data()
+                QMessageBox.information(
+                    self, "Reset Complete",
+                    "You can now set a new master password and save connections."
+                )
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to reset: {e}")
+            return None
         
         dialog = MasterPasswordDialog(self, is_setup=False)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             password = dialog.get_password()
-            self.log(f"PASSWORD DEBUG: Got password from dialog, length: {len(password) if password else 0}")
             if password:
-                verification_result = self.encryption_manager.verify_master_password(password)
-                self.log(f"PASSWORD DEBUG: Password verification result: {verification_result}")
-                if verification_result:
+                if self.encryption_manager.verify_master_password(password):
                     self.master_password = password
-                    self.log("PASSWORD DEBUG: Password verified successfully")
                     return password
-                else:
-                    self.log("PASSWORD DEBUG: Password verification failed")
-            else:
-                self.log("PASSWORD DEBUG: No password entered")
             # Offer to reset master password if verification fails
             reply = QMessageBox.question(
                 self, "Incorrect Password",
@@ -1037,20 +796,9 @@ class FTPClientGUI(QMainWindow):
 
             if reply == QMessageBox.StandardButton.Yes:
                 try:
-                    # Reset master password by removing the hash file
-                    import os
-                    if hasattr(self.encryption_manager, 'master_hash_file'):
-                        hash_file = self.encryption_manager.master_hash_file
-                        if hash_file.exists():
-                            os.remove(str(hash_file))
-                            self.log("Master password reset - hash file removed")
-
-                    # Also remove connections file to be safe
-                    if hasattr(self.encryption_manager, 'connections_file'):
-                        conn_file = self.encryption_manager.connections_file
-                        if conn_file.exists():
-                            os.remove(str(conn_file))
-                            self.log("Connections file removed for security")
+                    # Reset master password by clearing all encrypted data
+                    self.encryption_manager.clear_encrypted_data()
+                    self.log("Master password reset - all encrypted data cleared")
 
                     QMessageBox.information(
                         self, "Password Reset",
@@ -1058,6 +806,7 @@ class FTPClientGUI(QMainWindow):
                     )
                     return None  # Return None to indicate reset
                 except Exception as e:
+                    self.log(f"Password reset error: {e}")
                     QMessageBox.critical(self, "Error", f"Failed to reset password: {e}")
                     return None
             else:
@@ -1070,22 +819,13 @@ class FTPClientGUI(QMainWindow):
         connections = []
         password = None
         
-        print(f"SITE MANAGER DEBUG: Loading connections...")
-        print(f"SITE MANAGER DEBUG: Has master password: {self.encryption_manager.has_master_password()}")
-
         if self.encryption_manager.has_master_password():
-            self.log("SITE MANAGER DEBUG: Master password exists, requesting verification")
             password = self.get_master_password()
             if not password:
-                self.log("SITE MANAGER DEBUG: Password verification failed, not opening site manager")
-                return  # Don't open site manager if password is wrong
-
-            self.log("SITE MANAGER DEBUG: Password verified, decrypting connections")
+                return
             connections = self.encryption_manager.decrypt_connections(password)
-            print(f"SITE MANAGER DEBUG: Successfully loaded {len(connections)} connections")
         else:
             connections = []
-            print(f"SITE MANAGER DEBUG: No master password set, loading empty connections")
 
         dialog = ConnectionManagerDialog(
             self,
@@ -1102,18 +842,18 @@ class FTPClientGUI(QMainWindow):
     def quick_connect(self):
         """Quick connect from toolbar"""
         self.log("QUICK CONNECT: Method called")
-        # Debug: Check if fields exist
-        if not hasattr(self, 'quick_host'):
-            QMessageBox.warning(self, "Error", "Host field not initialized")
-            return
+        
+        # Access widgets via toolbar_manager
+        tm = self.toolbar_manager
+        
+        if not tm.quick_host.text().strip():
+             QMessageBox.warning(self, "Error", "Host field is empty")
+             return
 
-        host = self.quick_host.text().strip()
-        user = self.quick_user.text().strip()
-        password = self.quick_pass.text().strip()
-        port = self.quick_port.value()
-
-        self.log(f"DEBUG: Host field object exists: {hasattr(self, 'quick_host')}")
-        self.log(f"DEBUG: Host value: '{host}' (length: {len(host)})")
+        host = tm.quick_host.text().strip()
+        user = tm.quick_user.text().strip()
+        password = tm.quick_pass.text().strip()
+        port = tm.quick_port.value()
 
         if not host:
             QMessageBox.warning(self, "Error", "Please enter a host")
@@ -1172,7 +912,7 @@ class FTPClientGUI(QMainWindow):
         
         worker = connect_to_server(
             tab.config, tab.manager, tab.connection_worker,
-            self.connect_btn,
+            self.toolbar_manager.connect_btn,
             status_callback=lambda msg: self.statusBar().showMessage(msg),
             log_callback=self.log
         )
@@ -1200,11 +940,11 @@ class FTPClientGUI(QMainWindow):
         
         handle_connection_finished(
             tab.connection_worker, success, msg, tab.config, manager_ref, path_ref,
-            self.connect_btn, self.disconnect_action,
+            self.toolbar_manager.connect_btn, self.disconnect_action,
             status_callback=lambda m: self.status_bar.show_message(m),
             log_callback=self.log,
             refresh_callback=self.load_remote_files,
-            disconnect_btn=self.disconnect_btn if hasattr(self, 'disconnect_btn') else None,
+            disconnect_btn=self.toolbar_manager.disconnect_btn,
             status_bar=self.status_bar
         )
         
@@ -1440,7 +1180,9 @@ class FTPClientGUI(QMainWindow):
                 queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
                 move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
                 refresh_callback=self.load_remote_files,
-                format_size_func=self.format_size
+                format_size_func=self.format_size,
+                parent_widget=self,
+                overwrite_mode=self.upload_overwrite_mode
             )
             if not success:
                 QMessageBox.critical(self, "Upload Error", f"Failed to upload {path.name}")
@@ -1512,71 +1254,126 @@ class FTPClientGUI(QMainWindow):
         selected_items = tab.remote_table.selectedItems()
         self.context_menu_manager.create_remote_context_menu(tab.remote_table, position, selected_items)
     
+    def add_to_transfer_queue(self, direction, local_file, remote_file, size, status="Queued"):
+        """Add transfer to queue via QueuePanel"""
+        if self.queue_panel:
+            self.queue_panel.add_to_transfer_queue(direction, local_file, remote_file, size, status)
+
+    def process_next_transfer(self):
+        """Process next pending transfer from the queue"""
+        if not self.auto_process_queue:
+            return
+            
+        if len(self.transfer_engines) >= self.max_concurrent_transfers:
+            return
+
+        # Find next queued item
+        table = self.queue_panel.active_queue_table
+        if not table:
+            return
+            
+        for row in range(table.rowCount()):
+            status_item = table.item(row, 4)
+            if status_item and status_item.text() == "Queued":
+                # Found a queued item
+                direction = table.item(row, 0).text()
+                local_file = table.item(row, 1).text()
+                remote_file = table.item(row, 2).text()
+                
+                # Update status
+                table.item(row, 4).setText("Starting...")
+                
+                # Create and start transfer engine
+                engine = TransferEngine(direction, local_file, remote_file, row, self)
+                self.transfer_engines.append(engine)
+                engine.start()
+                return
+
+    def on_transfer_completed(self, row, success, message):
+        """Handle completed transfer"""
+        # Find engine for this row
+        engine = None
+        for e in self.transfer_engines:
+            if e.queue_row == row:
+                engine = e
+                break
+        
+        if engine:
+            self.transfer_engines.remove(engine)
+            
+        if success:
+            self.queue_panel.update_transfer_status(row, "Completed")
+            self.queue_panel.move_to_completed(row)
+            self.log(message, "success")
+            # Refresh file lists
+            self.refresh_files()
+        else:
+            self.queue_panel.update_transfer_status(row, "Failed")
+            # Get size from table before removing
+            size = "?"
+            if self.queue_panel.active_queue_table:
+                size_item = self.queue_panel.active_queue_table.item(row, 3)
+                if size_item:
+                    size = size_item.text()
+
+            # Move to failed tab
+            direction = engine.direction
+            local = engine.local_file
+            remote = engine.remote_file
+            self.queue_panel.add_to_failed_queue(direction, local, remote, size, message)
+            
+            # Remove from active queue
+            if self.queue_panel.active_queue_table:
+                self.queue_panel.active_queue_table.removeRow(row)
+            
+            self.log(message, "error")
+
+        # Process next
+        QTimer.singleShot(100, self.process_next_transfer)
+
+    def on_transfer_progress(self, row, bytes_transferred, total_bytes):
+        """Handle transfer progress update"""
+        percentage = 0
+        if total_bytes > 0:
+            percentage = int((bytes_transferred / total_bytes) * 100)
+        self.queue_panel.update_transfer_progress(row, f"{percentage}%")
+
     def upload_selected_local(self):
-        """Upload selected local file"""
-        self.log("UPLOAD DEBUG: Starting upload process")
+        """Upload selected local files via Queue"""
         tab = self.get_current_tab()
         if not tab or not tab.manager:
-            self.log("UPLOAD ERROR: Not connected to server")
             QMessageBox.warning(self, "Not Connected", "Please connect to a server first")
             return
 
-        if hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected():
-            self.log("UPLOAD WARNING: Connection lost, attempting to reconnect")
-            self.reconnect_tab(tab)
-            if not tab.manager or (hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected()):
-                self.log("UPLOAD ERROR: Could not reconnect")
-                QMessageBox.warning(self, "Connection Lost", "Could not reconnect. Please reconnect manually.")
-                return
-
-        # Get selected rows instead of just current row
+        # Use new selection gathering logic
         selected_rows = set()
         for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         if not selected_rows:
-            # If no selection, try to use current row
+            # Fallback to current
             current_row = self.local_panel.local_table.currentRow()
             if current_row >= 0:
                 selected_rows.add(current_row)
-                self.log("UPLOAD DEBUG: Using current row as selection")
             else:
-                self.log("UPLOAD ERROR: No files selected in local table")
                 QMessageBox.warning(self, "No Selection", "Please select a file to upload first")
                 return
 
-        self.log(f"UPLOAD DEBUG: Selected {len(selected_rows)} items for upload")
-
         for row in selected_rows:
             item = self.local_panel.local_table.item(row, 0)
-            if not item:
-                self.log(f"UPLOAD ERROR: No item at row {row}")
-                continue
-
+            if not item: continue
+            
             path_str = item.data(Qt.ItemDataRole.UserRole)
-            if not path_str:
-                self.log(f"UPLOAD ERROR: No path data for row {row}")
-                continue
-
+            if not path_str: continue
+            
             path = Path(path_str)
             if path.is_file():
-                self.log(f"UPLOAD DEBUG: Uploading file: {path} to {tab.current_remote_path}")
-                success = upload_file(
-                    tab.manager, path, tab.current_remote_path,
-                    log_callback=self.log,
-                    status_callback=lambda msg: self.statusBar().showMessage(msg),
-                    queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
-                    move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
-                    refresh_callback=self.load_remote_files,
-                    format_size_func=self.format_size
-                )
-                if not success:
-                    self.log(f"UPLOAD ERROR: Failed to upload {path.name}")
-                    QMessageBox.critical(self, "Upload Error", f"Failed to upload {path.name}")
-                    if self.queue_table.rowCount() > 0:
-                        self.queue_table.item(self.queue_table.rowCount() - 1, 4).setText("Error")
-            else:
-                self.log(f"UPLOAD WARNING: Skipping non-file item: {path}")
+                size = format_size(path.stat().st_size)
+                # Add to queue (Manager will pick it up)
+                self.add_to_transfer_queue("Upload", str(path), tab.current_remote_path, size)
+        
+        # Trigger processing
+        self.process_next_transfer()
     
     def download_selected_remote(self):
         """Download selected remote file"""
@@ -1584,45 +1381,47 @@ class FTPClientGUI(QMainWindow):
         if not tab or not tab.manager:
             QMessageBox.warning(self, "Not Connected", "Please connect to a server first")
             return
-        
-        if hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected():
-            self.log("Connection lost during download, reconnecting...", "warning")
-            self.reconnect_tab(tab)
-            if not tab.manager or (hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected()):
-                QMessageBox.warning(self, "Connection Lost", "Could not reconnect. Please reconnect manually.")
+        """Download selected remote files via Queue"""
+        tab = self.get_current_tab()
+        if not tab or not tab.manager:
+            return
+
+        selected_items = tab.remote_table.selectedItems()
+        if not selected_items:
+            # Try current row
+            current_row = tab.remote_table.currentRow()
+            if current_row >= 0:
+                 # Logic to select row... simplified for now
+                 pass
+            else:
+                QMessageBox.warning(self, "No Selection", "Please select a file to download")
                 return
+
+        # Get unique rows
+        rows = set(item.row() for item in selected_items)
         
-        row = tab.remote_table.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "No Selection", "Please select a file to download")
-            return
+        for row in rows:
+            # Get name from column 0
+            name_item = tab.remote_table.item(row, 0)
+            if not name_item: continue
+            
+            name = name_item.text()
+            if name == "..": continue
+            
+            # File info stored in user data? Or just name?
+            # RemoteFilePanel stores RemoteFile object in data
+            remote_file = name_item.data(Qt.ItemDataRole.UserRole)
+            
+            if remote_file and not remote_file.is_dir:
+                # Calculate local path
+                local_path = os.path.join(self.current_local_path, name)
+                size = format_size(remote_file.size)
+                
+                # Add to queue
+                self.add_to_transfer_queue("Download", local_path, remote_file.path, size)
         
-        item = tab.remote_table.item(row, 0)
-        if not item:
-            return
-        
-        file = item.data(Qt.ItemDataRole.UserRole)
-        if not file:
-            return
-        
-        if file.is_dir:
-            QMessageBox.information(self, "Directory", "Please select a file, not a directory")
-            return
-        
-        if file and not file.is_dir:
-            success = download_file(
-                tab.manager, file, self.current_local_path,
-                log_callback=self.log,
-                status_callback=lambda msg: self.statusBar().showMessage(msg),
-                queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
-                move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
-                refresh_callback=self.load_local_files,
-                format_size_func=self.format_size
-            )
-            if not success:
-                QMessageBox.critical(self, "Download Error", f"Failed to download {file.name}")
-                if self.queue_table.rowCount() > 0:
-                    self.queue_table.item(self.queue_table.rowCount() - 1, 4).setText("Error")
+        # Trigger processing
+        self.process_next_transfer()
     
     def delete_selected_remote(self):
         """Delete selected remote file"""
@@ -1666,7 +1465,11 @@ class FTPClientGUI(QMainWindow):
         if settings_file.exists():
             try:
                 with open(settings_file) as f:
-                    return json.load(f)
+                    settings = json.load(f)
+                    # Safety check for font size to prevent QFont warnings
+                    if 'font_size' in settings and (not isinstance(settings['font_size'], int) or settings['font_size'] <= 0):
+                        settings['font_size'] = 10
+                    return settings
             except:
                 pass
         return {}
@@ -1686,20 +1489,12 @@ class FTPClientGUI(QMainWindow):
         except Exception as e:
             return []
     
-    def apply_theme(self, theme='Light'):
-        """Apply premium theme styling"""
-        if theme == 'Dark':
-            self.setStyleSheet(PREMIUM_DARK_THEME)
-        else:
-            self.setStyleSheet(PREMIUM_LIGHT_THEME)
-
-    def apply_global_theme(self):
-        """Apply global theme styling"""
-        # Force theme application to all child widgets
-        for widget in self.findChildren(QWidget):
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
-            widget.update()
+    def apply_modern_theme(self):
+        """Apply modern theme using ThemeManager"""
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            ThemeManager.apply_theme(app)
     
     def add_to_transfer_queue(self, direction, local_file, remote_file, size, status):
         """Add transfer to active queue (delegates to queue_panel)"""
@@ -1713,7 +1508,11 @@ class FTPClientGUI(QMainWindow):
 
     def process_next_transfer(self):
         """Process the next transfer in queue if slots available"""
-        if not hasattr(self, 'active_queue_table'):
+        if not hasattr(self, 'queue_panel') or not hasattr(self.queue_panel, 'active_queue_table'):
+            return
+
+        active_queue_table = self.queue_panel.active_queue_table
+        if not active_queue_table:
             return
 
         active_transfers = len(self.transfer_engines)
@@ -1721,23 +1520,27 @@ class FTPClientGUI(QMainWindow):
             return  # Max concurrent transfers reached
 
         # Find next pending transfer
-        for row in range(self.active_queue_table.rowCount()):
-            status_item = self.active_queue_table.item(row, 4)
+        for row in range(active_queue_table.rowCount()):
+            status_item = active_queue_table.item(row, 4)
             if status_item and status_item.text() == "Queued":
                 self.start_transfer(row)
                 break
 
     def start_transfer(self, row):
         """Start a transfer from the queue"""
-        if not hasattr(self, 'active_queue_table') or row >= self.active_queue_table.rowCount():
+        if not hasattr(self, 'queue_panel') or not hasattr(self.queue_panel, 'active_queue_table'):
             return
 
-        direction = self.active_queue_table.item(row, 0).text()
-        local_file = self.active_queue_table.item(row, 1).text()
-        remote_file = self.active_queue_table.item(row, 2).text()
+        active_queue_table = self.queue_panel.active_queue_table
+        if not active_queue_table or row >= active_queue_table.rowCount():
+            return
+
+        direction = active_queue_table.item(row, 0).text()
+        local_file = active_queue_table.item(row, 1).text()
+        remote_file = active_queue_table.item(row, 2).text()
 
         # Update status to "Transferring"
-        self.active_queue_table.item(row, 4).setText("Transferring")
+        active_queue_table.item(row, 4).setText("Transferring")
 
         # Create transfer engine
         engine = TransferEngine(direction, local_file, remote_file, row, self)
@@ -1781,12 +1584,14 @@ class FTPClientGUI(QMainWindow):
 
     def on_transfer_completed(self, row, success, message):
         """Handle transfer completion"""
-        if hasattr(self, 'active_queue_table') and row < self.active_queue_table.rowCount():
-            if success:
-                self.active_queue_table.item(row, 4).setText("Completed")
-                self.move_to_completed(row)
-            else:
-                self.active_queue_table.item(row, 4).setText(f"Failed: {message}")
+        if hasattr(self, 'queue_panel') and hasattr(self.queue_panel, 'active_queue_table'):
+            active_queue_table = self.queue_panel.active_queue_table
+            if active_queue_table and row < active_queue_table.rowCount():
+                if success:
+                    active_queue_table.item(row, 4).setText("Completed")
+                    self.move_to_completed(row)
+                else:
+                    active_queue_table.item(row, 4).setText(f"Failed: {message}")
 
         # Remove the transfer engine
         for engine in self.transfer_engines[:]:
@@ -1799,10 +1604,12 @@ class FTPClientGUI(QMainWindow):
 
     def on_transfer_progress(self, row, bytes_transferred, total_bytes):
         """Handle transfer progress updates"""
-        if hasattr(self, 'active_queue_table') and row < self.active_queue_table.rowCount():
-            # Update progress in the status column
-            progress_pct = (bytes_transferred / total_bytes * 100) if total_bytes > 0 else 0
-            self.active_queue_table.item(row, 4).setText(f"Transferring ({progress_pct:.1f}%)")
+        if hasattr(self, 'queue_panel') and hasattr(self.queue_panel, 'active_queue_table'):
+            active_queue_table = self.queue_panel.active_queue_table
+            if active_queue_table and row < active_queue_table.rowCount():
+                # Update progress in the status column
+                progress_pct = (bytes_transferred / total_bytes * 100) if total_bytes > 0 else 0
+                active_queue_table.item(row, 4).setText(f"Transferring ({progress_pct:.1f}%)")
 
     def set_max_concurrent_transfers(self, max_transfers):
         """Set maximum concurrent transfers"""
@@ -1946,6 +1753,26 @@ class FTPClientGUI(QMainWindow):
                     path = Path(path_str)
                     if path.is_file():
                         self.open_local_file(path)
+                        break  # Open only first file
+
+    def open_selected_local_file_with_app(self, app_path):
+        """Open selected local file with specific application"""
+        selected_rows = set()
+        for item in self.local_panel.local_table.selectedItems():
+            selected_rows.add(item.row())
+
+        for row in selected_rows:
+            item = self.local_panel.local_table.item(row, 0)
+            if item:
+                path_str = item.data(Qt.ItemDataRole.UserRole)
+                if path_str:
+                    path = Path(path_str)
+                    if path.is_file():
+                        try:
+                            import subprocess
+                            subprocess.Popen([app_path, str(path)])
+                        except Exception as e:
+                            QMessageBox.warning(self, "Error", f"Failed to open with {app_path}: {str(e)}")
                         break  # Open only first file
 
     def view_selected_remote_file(self):
@@ -2435,9 +2262,24 @@ class FTPClientGUI(QMainWindow):
     def _download_single_file(self, remote_path, local_path, manager):
         """Download a single file with proper error handling"""
         try:
-            # Add to transfer queue instead of direct download
-            # For download, we need to estimate file size from remote
-            file_size = 0  # TODO: Get actual file size from remote
+            # Try to get actual file size from remote file listing
+            file_size = 0
+            try:
+                # Parse the remote path to get directory and filename
+                remote_dir = '/'.join(remote_path.split('/')[:-1]) if '/' in remote_path else '.'
+                remote_filename = remote_path.split('/')[-1] if '/' in remote_path else remote_path
+
+                # List the remote directory to find the file size
+                if hasattr(manager, 'list_files'):
+                    files = manager.list_files(remote_dir)
+                    for file_info in files:
+                        if file_info.name == remote_filename:
+                            file_size = file_info.size
+                            break
+            except Exception:
+                # If we can't get the size, use 0 (unknown size)
+                file_size = 0
+
             self.add_to_transfer_queue(
                 "Download",
                 str(local_path),

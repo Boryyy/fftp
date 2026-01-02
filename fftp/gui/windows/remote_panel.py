@@ -27,44 +27,24 @@ class RemoteFilePanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        """Initialize the remote file panel UI"""
+        """Initialize the remote file panel UI - Simplified for Modern Minimalism"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Remote file browser container
-        remote_container = QWidget()
-        remote_layout = QVBoxLayout(remote_container)
-        remote_layout.setContentsMargins(8, 8, 8, 8)
-        remote_layout.setSpacing(4)
-
-        # Title bar
-        title_bar = QWidget()
-        title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(8, 8, 8, 4)
-
-        self.title_label = QLabel("Remote Site - Not Connected")
-        self.title_label.setStyleSheet("font-weight: 600; font-size: 14px; color: #2c3e50; border: 2px solid #bdc3c7; border-radius: 5px; padding: 4px 8px;")
-        title_layout.addWidget(self.title_label)
-        title_layout.addStretch()
-
-        remote_layout.addWidget(title_bar)
-
-        # Connection tabs
+        # Connection tabs - Use flat style from ThemeManager
         self.remote_tabs = QTabWidget()
         self.remote_tabs.setTabsClosable(True)
+        self.remote_tabs.setDocumentMode(True) # Cleaner look on some platforms
         self.remote_tabs.tabCloseRequested.connect(self.close_tab)
 
-        # Add initial empty tab (before connecting signal to avoid premature emission)
+        # Add initial empty tab
         self.add_empty_tab()
-
-        # Update title for initial state
-        self.update_title()
 
         # Connect signal after tab is added
         self.remote_tabs.currentChanged.connect(self.main_window.on_tab_changed)
 
-        remote_layout.addWidget(self.remote_tabs)
-        layout.addWidget(remote_container)
+        layout.addWidget(self.remote_tabs)
 
     def add_empty_tab(self):
         """Add an empty connection tab"""
@@ -99,21 +79,8 @@ class RemoteFilePanel(QWidget):
         return tab
 
     def _setup_tab_connections(self, tab):
-        """Set up connections for a tab"""
-        if hasattr(tab, 'remote_path_edit'):
-            tab.remote_path_edit.returnPressed.connect(self.main_window.navigate_remote_path)
-        if hasattr(tab, 'remote_up_btn'):
-            tab.remote_up_btn.clicked.connect(self.main_window.remote_up)
-        if hasattr(tab, 'remote_table'):
-            tab.remote_table.doubleClicked.connect(self.main_window.on_remote_double_click)
-            tab.remote_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            tab.remote_table.customContextMenuRequested.connect(self.main_window.show_remote_context_menu)
-
-            # Set up drag and drop
-            if hasattr(tab.remote_table, 'set_drag_drop_enabled'):
-                drag_drop_enabled = self.main_window.settings.get('enable_drag_drop', True)
-                tab.remote_table.set_drag_drop_enabled(drag_drop_enabled)
-                tab.remote_table.drop_callback = self.main_window.handle_file_drop
+        """No additional connections needed as ConnectionTab handles its own signals"""
+        pass
 
     def close_tab(self, index):
         """Close a connection tab"""

@@ -7,13 +7,21 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QGroupBox, QPushButton,
-    QTreeView, QSplitter
+    QTreeView, QSplitter, QHeaderView
 )
 from PyQt6.QtGui import QFileSystemModel
 from PyQt6.QtCore import Qt, QDir
 from PyQt6.QtGui import QColor
 
-from ..table_managers import NumericTableWidgetItem
+try:
+    from ..table_managers import NumericTableWidgetItem, format_size
+except ImportError:
+    # Fallback if import fails
+    class NumericTableWidgetItem:
+        def __init__(self, text):
+            pass
+    def format_size(size):
+        return f"{size}"
 from ..drag_drop_table import DragDropTableWidget
 
 
@@ -34,68 +42,56 @@ class LocalFilePanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        """Initialize the local file panel UI"""
+        """Initialize the local file panel UI - Simplified for Modern Minimalism"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0) # Removed 2px right margin for perfect parity
+  # Minimal right margin for separation
 
-        # Local file browser group
-        local_group = QGroupBox("Local Site")
-        local_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: 600;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                margin-top: 1ex;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        local_container = QWidget()
+        local_layout = QVBoxLayout(local_container)
+        local_layout.setContentsMargins(0, 0, 0, 0)
+        local_layout.setSpacing(2)
 
-        local_layout = QVBoxLayout(local_group)
-        local_layout.setContentsMargins(8, 8, 8, 8)
-        local_layout.setSpacing(4)
-
-        # Path navigation bar
+        # Path navigation bar - Simplified
         path_layout = QHBoxLayout()
-        path_layout.setSpacing(6)
-
-        path_label = QLabel("Path:")
-        path_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
-        path_layout.addWidget(path_label)
+        path_layout.setContentsMargins(2, 2, 2, 2)
+        path_layout.setSpacing(4)
 
         self.local_path_edit = QLineEdit()
         self.local_path_edit.setText(self.current_local_path)
         self.local_path_edit.returnPressed.connect(self.navigate_local_path)
-        self.local_path_edit.setStyleSheet("font-size: 12px; padding: 8px 12px; border: 2px solid #bdc3c7; border-radius: 5px;")
-        path_layout.addWidget(self.local_path_edit)
+        self.local_path_edit.setPlaceholderText("Local Path")
+        self.local_path_edit.setMinimumWidth(200)
+        path_layout.addWidget(self.local_path_edit, 1)
 
-        # Up button
-        local_up_btn = QPushButton("↑")
-        local_up_btn.setMaximumWidth(44)
-        local_up_btn.setMinimumHeight(34)
+        # Up button - Compact but visible
+        local_up_btn = QPushButton("Up")
+        local_up_btn.setFixedWidth(40)
+        local_up_btn.setMinimumHeight(24)
         local_up_btn.setToolTip("Go up one directory")
-        local_up_btn.setProperty("class", "secondary")
         local_up_btn.clicked.connect(self.local_up)
         path_layout.addWidget(local_up_btn)
 
-        # Refresh button
+        # Refresh button - Visible
         local_refresh_btn = QPushButton("Refresh")
-        local_refresh_btn.setMaximumWidth(44)
-        local_refresh_btn.setMinimumHeight(34)
+        local_refresh_btn.setFixedWidth(65)
+        local_refresh_btn.setMinimumHeight(24)
         local_refresh_btn.setToolTip("Refresh local files")
-        local_refresh_btn.setProperty("class", "secondary")
         local_refresh_btn.clicked.connect(self.load_local_files)
         path_layout.addWidget(local_refresh_btn)
+
+        # New Folder button - Match Remote
+        local_new_folder_btn = QPushButton("New Folder")
+        local_new_folder_btn.setFixedWidth(85)
+        local_new_folder_btn.setMinimumHeight(24)
+        local_new_folder_btn.setToolTip("Create new local folder")
+        local_new_folder_btn.clicked.connect(self.create_local_folder)
+        path_layout.addWidget(local_new_folder_btn)
 
         local_layout.addLayout(path_layout)
 
         # Splitter for tree and table views
-        self.local_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.local_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Tree view for directory navigation
         self.local_tree = QTreeView()
@@ -111,8 +107,8 @@ class LocalFilePanel(QWidget):
         self.local_tree.setHeaderHidden(True)
         self.local_tree.clicked.connect(self.on_tree_clicked)
         self.local_tree.doubleClicked.connect(self.on_tree_double_clicked)
-        self.local_tree.setMaximumWidth(250)
-        self.local_tree.setMinimumWidth(150)
+        self.local_tree.setMinimumHeight(150)
+        self.local_tree.setMinimumWidth(50)  # Allow width resizing
 
         self.local_splitter.addWidget(self.local_tree)
 
@@ -128,10 +124,35 @@ class LocalFilePanel(QWidget):
         self.local_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.local_table.setAlternatingRowColors(True)
         self.local_table.setSortingEnabled(True)
-        self.local_table.setColumnWidth(0, 200)
-        self.local_table.setColumnWidth(1, 80)
-        self.local_table.setColumnWidth(2, 80)
-        self.local_table.setColumnWidth(3, 120)
+
+        # Configure scroll bars for better usability
+        self.local_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.local_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Set minimum height for the table to ensure it's visible
+        self.local_table.setMinimumHeight(200)
+
+        # Enable word wrap for filename column to handle long names better
+        self.local_table.setWordWrap(False)  # Keep filenames on single line
+        self.local_table.resizeRowsToContents()  # Adjust row heights if needed
+
+        # Set reasonable default column widths with maximum constraints
+        self.local_table.setColumnWidth(0, 280)  # Filename: reasonable width
+        self.local_table.setColumnWidth(1, 80)   # Filesize: compact
+        self.local_table.setColumnWidth(2, 100)  # Filetype: reasonable
+        self.local_table.setColumnWidth(3, 120)  # Modified: reasonable
+
+        self.local_table.horizontalHeader().setMinimumSectionSize(60)  # Minimum column width
+        self.local_table.horizontalHeader().setMaximumSectionSize(400)  # Maximum for filename column
+
+        # Make all columns resizable for user flexibility
+        self.local_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.local_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.local_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.local_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+
+        # No stretching to maintain proportions
+        self.local_table.horizontalHeader().setStretchLastSection(False)
 
         # Connect table events
         self.local_table.doubleClicked.connect(self.on_table_double_click)
@@ -140,11 +161,14 @@ class LocalFilePanel(QWidget):
 
         self.local_splitter.addWidget(self.local_table)
 
-        # Set splitter proportions
+        # Set splitter proportions (Directories above, Files below)
         self.local_splitter.setSizes([200, 400])
 
         local_layout.addWidget(self.local_splitter)
-        layout.addWidget(local_group)
+        layout.addWidget(local_container)
+
+        # Load initial local files
+        self.load_local_files()
 
     def load_local_files(self):
         """Load local directory into table"""
@@ -170,7 +194,7 @@ class LocalFilePanel(QWidget):
                 self.local_table.insertRow(row)
                 self.local_table.setItem(row, 0, QTableWidgetItem(".."))
                 self.local_table.setItem(row, 1, QTableWidgetItem(""))
-                self.local_table.setItem(row, 2, QTableWidgetItem("<Parent Directory>"))
+                self.local_table.setItem(row, 2, QTableWidgetItem("Parent Directory"))
                 self.local_table.setItem(row, 3, QTableWidgetItem(""))
 
             for item in sorted(path.iterdir()):
@@ -197,13 +221,12 @@ class LocalFilePanel(QWidget):
 
                     row = self.local_table.rowCount()
                     self.local_table.insertRow(row)
-                    icon = self.parent.icon_theme_manager.get_file_icon(item.name, is_dir=True)
-                    name_item = QTableWidgetItem(icon, item.name)
+                    name_item = QTableWidgetItem(item.name)
                     self.local_table.setItem(row, 0, name_item)
                     size_item = QTableWidgetItem("")
                     size_item.setData(Qt.ItemDataRole.UserRole, 0)
                     self.local_table.setItem(row, 1, size_item)
-                    self.local_table.setItem(row, 2, QTableWidgetItem("<Directory>"))
+                    self.local_table.setItem(row, 2, QTableWidgetItem("Directory"))
                     try:
                         mtime = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
                     except:
@@ -244,14 +267,13 @@ class LocalFilePanel(QWidget):
 
                     row = self.local_table.rowCount()
                     self.local_table.insertRow(row)
-                    icon = self.parent.icon_theme_manager.get_file_icon(item.name, is_dir=False)
-                    name_item = QTableWidgetItem(icon, item.name)
+                    name_item = QTableWidgetItem(item.name)
                     self.local_table.setItem(row, 0, name_item)
-                    size_str = self.parent.format_size(size)
-                    size_item = QTableWidgetItem(size_str)
+                    size_str = format_size(size)
+                    size_item = NumericTableWidgetItem(size_str)
                     size_item.setData(Qt.ItemDataRole.UserRole, size)
                     self.local_table.setItem(row, 1, size_item)
-                    self.local_table.setItem(row, 2, QTableWidgetItem(item.suffix or "File"))
+                    self.local_table.setItem(row, 2, QTableWidgetItem(item.suffix.lstrip('.') or "File"))
                     try:
                         mtime = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
                     except:
@@ -277,7 +299,10 @@ class LocalFilePanel(QWidget):
 
             self.local_table.setSortingEnabled(True)
             self.local_table.resizeColumnsToContents()
+            self.local_table.viewport().update()  # Force refresh
+            self.local_table.repaint()  # Force repaint
             self.local_path_edit.setText(self.current_local_path)
+
         except Exception as e:
             if hasattr(self.parent, 'statusBar'):
                 self.parent.statusBar().showMessage(f"Error loading local files: {str(e)}")
@@ -291,8 +316,22 @@ class LocalFilePanel(QWidget):
 
     def local_up(self):
         """Navigate up in local directory"""
-        self.current_local_path = str(Path(self.current_local_path).parent)
+        parent_path = Path(self.current_local_path).parent
+        self.current_local_path = str(parent_path)
+        self.local_path_edit.setText(self.current_local_path)
         self.load_local_files()
+
+    def create_local_folder(self):
+        """Create new local folder"""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        folder_name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
+        if ok and folder_name:
+            try:
+                new_folder = Path(self.current_local_path) / folder_name
+                new_folder.mkdir(parents=True, exist_ok=False)
+                self.load_local_files()  # Refresh
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create folder: {e}")
 
     def on_tree_clicked(self, index):
         """Handle tree item click"""

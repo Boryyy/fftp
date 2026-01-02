@@ -24,73 +24,45 @@ class StatusPanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        """Initialize the status panel UI"""
+        """Initialize the status panel UI - Reconstructed for Minimalism"""
+        # Status area layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Status group
-        status_group = QGroupBox("Message Log")
-        status_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: 600;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                margin-top: 1ex;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-
-        status_layout = QVBoxLayout(status_group)
-        status_layout.setContentsMargins(8, 8, 8, 8)
-
-        # Message log
+        # Message log - Using QTextEdit for HTML color support
         self.message_log = QTextEdit()
         self.message_log.setReadOnly(True)
-        self.message_log.setMinimumHeight(120)
-        self.message_log.setMaximumHeight(200)
-        # QTextEdit doesn't have setMaximumBlockCount, we'll manage history manually
-        self.message_log.setStyleSheet("""
-            QTextEdit {
-                background-color: #ffffff;
-                color: #2c3e50;
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
+        self.message_log.setAcceptRichText(True)
+        
+        self.message_log.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: #fcfcfc;
+                border: none;
+                border-bottom: 1px solid #d1d1d1;
                 font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
                 font-size: 11px;
-                line-height: 1.4;
-            }
+                color: #202124;
+                padding: 4px;
+            }}
         """)
-
-        status_layout.addWidget(self.message_log)
-        layout.addWidget(status_group)
+        
+        layout.addWidget(self.message_log)
 
     def log(self, message, level="info"):
         """Add a message to the log display"""
+        from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
-        prefix = {
-            "info": "[INFO]",
-            "warning": "[WARN]",
-            "error": "[ERROR]",
-            "success": "[OK]",
-            "debug": "[DEBUG]"
-        }.get(level, "[INFO]")
-
-        # Create HTML-formatted message for better display
+        prefix = f"[{level.upper()}]"
+        
         color = {
-            "info": "#2c3e50",
-            "warning": "#f39c12",
-            "error": "#e74c3c",
-            "success": "#27ae60",
-            "debug": "#9b59b6"
-        }.get(level, "#2c3e50")
+            "info": "#202124",
+            "error": "#d93025",
+            "success": "#1e8e3e",
+            "debug": "#5f6368"
+        }.get(level, "#202124")
 
-        html_message = f'<span style="color: {color};">{timestamp} {prefix} {message}</span><br>'
+        html_message = f'<span style="color: {color};">{timestamp} {prefix} {message}</span>'
 
         # Add to internal storage
         log_entry = f"{timestamp} {prefix} {message}"
@@ -137,5 +109,5 @@ class StatusPanel(QWidget):
                     f.write(message + "\n")
             return True
         except Exception as e:
-            print(f"Failed to export log: {e}")
+            QMessageBox.critical(parent, "Export Error", f"Failed to export log: {str(e)}")
             return False

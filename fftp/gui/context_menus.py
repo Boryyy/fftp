@@ -41,7 +41,13 @@ class ContextMenuManager:
 
         # Open with...
         open_with_menu = file_menu.addMenu("Open with...")
-        # TODO: Add open with applications
+        # Add common applications
+        notepad_action = open_with_menu.addAction("Notepad")
+        notepad_action.triggered.connect(lambda: self._open_with_application("notepad.exe"))
+
+        # Add system default
+        default_action = open_with_menu.addAction("System Default")
+        default_action.triggered.connect(self._open_with_system_default)
 
         file_menu.addSeparator()
 
@@ -256,6 +262,14 @@ class ContextMenuManager:
         self.parent.upload_selected_local()  # For now, same as upload
 
     def _open_selected_local(self):
+        self.parent.open_selected_local_file()
+
+    def _open_with_application(self, app_path):
+        """Open selected file with specific application"""
+        self.parent.open_selected_local_file_with_app(app_path)
+
+    def _open_with_system_default(self):
+        """Open selected file with system default application"""
         self.parent.open_selected_local_file()
 
     def _create_new_file_local(self):

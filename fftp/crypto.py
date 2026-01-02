@@ -54,38 +54,44 @@ class EncryptionManager:
         return Fernet(key)
     
     def set_master_password(self, password: str) -> bool:
-        """Set master password (creates hash for verification)"""
+        """Set master password (creates verification token using same key derivation as encryption)"""
         try:
-            digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
-            digest.update(password.encode())
-            password_hash = digest.finalize()
-            
+            # Use the same key derivation as encryption
+            salt = self._get_salt()
+            key = self._derive_key(password, salt)
+
+            # Create a verification token by encrypting a known value
+            fernet = Fernet(key)
+            verification_token = fernet.encrypt(b"VERIFIED")
+
             with open(self.master_hash_file, 'wb') as f:
-                f.write(password_hash)
-            
+                f.write(verification_token)
+
             return True
         except Exception as e:
             return False
     
     def verify_master_password(self, password: str) -> bool:
-        """Verify master password"""
+        """Verify master password using same key derivation as encryption"""
         if not self.master_hash_file.exists():
-            print(f"CRYPTO DEBUG: Master hash file does not exist: {self.master_hash_file}")
             return False
 
         try:
-            digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
-            digest.update(password.encode())
-            provided_hash = digest.finalize()
+            # Use the same key derivation as encryption
+            salt = self._get_salt()
+            key = self._derive_key(password, salt)
+
+            fernet = Fernet(key)
 
             with open(self.master_hash_file, 'rb') as f:
-                stored_hash = f.read()
+                stored_token = f.read()
 
-            result = provided_hash == stored_hash
-            print(f"CRYPTO DEBUG: Password verification - provided hash length: {len(provided_hash)}, stored hash length: {len(stored_hash)}, match: {result}")
+            # Try to decrypt the verification token
+            decrypted = fernet.decrypt(stored_token)
+            result = decrypted == b"VERIFIED"
+
             return result
         except Exception as e:
-            print(f"CRYPTO DEBUG: Password verification error: {e}")
             return False
     
     def has_master_password(self) -> bool:
@@ -112,32 +118,43 @@ class EncryptionManager:
     def decrypt_connections(self, password: str) -> list:
         """Decrypt and load connections"""
         if not self.connections_file.exists():
-            print(f"CRYPTO DEBUG: Connections file does not exist: {self.connections_file}")
             return []
 
         try:
-            print(f"CRYPTO DEBUG: Attempting to decrypt connections with password (len={len(password)})")
             fernet = self._get_fernet(password)
 
             with open(self.connections_file, 'rb') as f:
                 encrypted_data = f.read()
-            print(f"CRYPTO DEBUG: Read {len(encrypted_data)} bytes of encrypted data")
 
             decrypted_data = fernet.decrypt(encrypted_data)
-            print(f"CRYPTO DEBUG: Successfully decrypted {len(decrypted_data)} bytes")
 
             import json
             connections = json.loads(decrypted_data.decode())
-            print(f"CRYPTO DEBUG: Successfully parsed {len(connections)} connections")
 
             return connections
         except Exception as e:
-            print(f"CRYPTO DEBUG: Decryption failed: {e}")
             return []
     
+    def migrate_legacy_password(self) -> bool:
+        """Check if using old SHA256-based password system"""
+        if not self.master_hash_file.exists():
+            return False  # No password to migrate
+
+        try:
+            # Check if it's an old-style hash (32 bytes for SHA256) vs new-style token (longer)
+            with open(self.master_hash_file, 'rb') as f:
+                data = f.read()
+
+            # Old SHA256 hash is 32 bytes, new encrypted token is much longer
+            return len(data) != 32
+        except Exception as e:
+            return False
+
     def clear_encrypted_data(self):
         """Clear all encrypted data (for testing/reset)"""
         if self.connections_file.exists():
             self.connections_file.unlink()
         if self.master_hash_file.exists():
             self.master_hash_file.unlink()
+        if self.salt_file.exists():
+            self.salt_file.unlink()  # Also remove salt for fresh start

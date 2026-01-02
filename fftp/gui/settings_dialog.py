@@ -66,37 +66,42 @@ class SettingsDialog(QDialog):
         general_layout.addWidget(conn_group)
         
         transfer_group = QGroupBox("Transfer Settings")
-        transfer_layout = QFormLayout()
+        # The 'Transfer Settings' group from the General tab is being removed
+        # as its contents are now managed in the 'Advanced' tab under 'Transfer & Performance'.
+        # This ensures consistency and avoids duplication of settings.
+        # The following lines are commented out to remove the group from the General tab.
+        # transfer_group = QGroupBox("Transfer Settings")
+        # transfer_layout = QFormLayout()
         
-        self.buffer_size_spin = QSpinBox()
-        self.buffer_size_spin.setRange(1024, 10485760)
-        self.buffer_size_spin.setValue(self.settings.get('buffer_size', 8192))
-        self.buffer_size_spin.setSuffix(" bytes")
-        transfer_layout.addRow("Buffer Size:", self.buffer_size_spin)
+        # self.buffer_size_spin = QSpinBox()
+        # self.buffer_size_spin.setRange(1024, 10485760)
+        # self.buffer_size_spin.setValue(self.settings.get('buffer_size', 8192))
+        # self.buffer_size_spin.setSuffix(" bytes")
+        # transfer_layout.addRow("Buffer Size:", self.buffer_size_spin)
         
-        self.max_concurrent_spin = QSpinBox()
-        self.max_concurrent_spin.setRange(1, 10)
-        self.max_concurrent_spin.setValue(self.settings.get('max_concurrent_transfers', 3))
-        transfer_layout.addRow("Max Concurrent Transfers:", self.max_concurrent_spin)
+        # self.max_concurrent_spin = QSpinBox()
+        # self.max_concurrent_spin.setRange(1, 10)
+        # self.max_concurrent_spin.setValue(self.settings.get('max_concurrent_transfers', 3))
+        # transfer_layout.addRow("Max Concurrent Transfers:", self.max_concurrent_spin)
         
-        self.auto_retry_check = QCheckBox("Auto-retry Failed Transfers")
-        self.auto_retry_check.setChecked(self.settings.get('auto_retry', True))
-        transfer_layout.addRow(self.auto_retry_check)
+        # self.auto_retry_check = QCheckBox("Auto-retry Failed Transfers")
+        # self.auto_retry_check.setChecked(self.settings.get('auto_retry', True))
+        # transfer_layout.addRow(self.auto_retry_check)
         
-        self.show_progress_check = QCheckBox("Show Transfer Progress")
-        self.show_progress_check.setChecked(self.settings.get('show_progress', True))
-        transfer_layout.addRow(self.show_progress_check)
+        # self.show_progress_check = QCheckBox("Show Transfer Progress")
+        # self.show_progress_check.setChecked(self.settings.get('show_progress', True))
+        # transfer_layout.addRow(self.show_progress_check)
         
-        self.drag_drop_check = QCheckBox("Enable Drag-and-Drop from File System")
-        self.drag_drop_check.setChecked(self.settings.get('enable_drag_drop', True))
-        transfer_layout.addRow(self.drag_drop_check)
+        # self.drag_drop_check = QCheckBox("Enable Drag-and-Drop from File System")
+        # self.drag_drop_check.setChecked(self.settings.get('enable_drag_drop', True))
+        # transfer_layout.addRow(self.drag_drop_check)
         
-        self.confirm_delete_check = QCheckBox("Confirm Before Deleting Files")
-        self.confirm_delete_check.setChecked(self.settings.get('confirm_delete', True))
-        transfer_layout.addRow(self.confirm_delete_check)
+        # self.confirm_delete_check = QCheckBox("Confirm Before Deleting Files")
+        # self.confirm_delete_check.setChecked(self.settings.get('confirm_delete', True))
+        # transfer_layout.addRow(self.confirm_delete_check)
         
-        transfer_group.setLayout(transfer_layout)
-        general_layout.addWidget(transfer_group)
+        # transfer_group.setLayout(transfer_layout)
+        # general_layout.addWidget(transfer_group) # Removed duplicated transfer group from General tab
         
         interface_group = QGroupBox("Interface Settings")
         interface_layout = QFormLayout()
@@ -135,9 +140,8 @@ class SettingsDialog(QDialog):
         theme_layout = QFormLayout()
         
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Light", "Dark", "System"])
-        current_theme = self.settings.get('theme', 'Light')
-        self.theme_combo.setCurrentText(current_theme)
+        self.theme_combo.addItems(["Light"]) # Removed Dark and System for a clean look
+        self.theme_combo.setCurrentText("Light")
         theme_layout.addRow("Theme:", self.theme_combo)
         
         self.auto_theme_check = QCheckBox("Auto-detect System Theme")
@@ -265,32 +269,38 @@ class SettingsDialog(QDialog):
         performance_group.setLayout(performance_form)
         advanced_layout.addWidget(performance_group)
 
-        transfer_group = QGroupBox("Transfer Settings")
-        transfer_form = QFormLayout()
+        perf_transfer_group = QGroupBox("Transfer & Performance")
+        perf_transfer_form = QFormLayout()
 
         self.max_concurrent_transfers_spin = QSpinBox()
-        self.max_concurrent_transfers_spin.setRange(1, 10)
+        self.max_concurrent_transfers_spin.setRange(1, 100)
         self.max_concurrent_transfers_spin.setValue(self.settings.get('max_concurrent_transfers', 10))
-        transfer_form.addRow("Max Concurrent Transfers:", self.max_concurrent_transfers_spin)
+        perf_transfer_form.addRow("Max Concurrent Transfers:", self.max_concurrent_transfers_spin)
 
         self.speed_limit_check = QCheckBox("Enable Speed Limit")
-        self.speed_limit_check.setChecked(self.settings.get('speed_limit_enabled', False))  # Default: unlimited
-        transfer_form.addRow(self.speed_limit_check)
+        self.speed_limit_check.setChecked(self.settings.get('speed_limit_enabled', False))
+        perf_transfer_form.addRow(self.speed_limit_check)
 
         self.speed_limit_spin = QSpinBox()
-        self.speed_limit_spin.setRange(1, 10000)
-        self.speed_limit_spin.setValue(self.settings.get('speed_limit', 100))
+        self.speed_limit_spin.setRange(1, 100000)
+        self.speed_limit_spin.setValue(self.settings.get('speed_limit', 1000))
         self.speed_limit_spin.setSuffix(" KB/s")
         self.speed_limit_spin.setEnabled(self.speed_limit_check.isChecked())
         self.speed_limit_check.toggled.connect(self.speed_limit_spin.setEnabled)
-        transfer_form.addRow("Speed Limit:", self.speed_limit_spin)
+        perf_transfer_form.addRow("Speed Limit:", self.speed_limit_spin)
+
+        self.buffer_size_spin = QSpinBox()
+        self.buffer_size_spin.setRange(8192, 10485760)
+        self.buffer_size_spin.setValue(self.settings.get('buffer_size', 65536))
+        self.buffer_size_spin.setSuffix(" bytes")
+        perf_transfer_form.addRow("Buffer Size:", self.buffer_size_spin)
 
         self.auto_resume_transfers_check = QCheckBox("Auto-resume interrupted transfers")
         self.auto_resume_transfers_check.setChecked(self.settings.get('auto_resume_transfers', True))
-        transfer_form.addRow(self.auto_resume_transfers_check)
+        perf_transfer_form.addRow(self.auto_resume_transfers_check)
 
-        transfer_group.setLayout(transfer_form)
-        advanced_layout.addWidget(transfer_group)
+        perf_transfer_group.setLayout(perf_transfer_form)
+        advanced_layout.addWidget(perf_transfer_group)
 
         advanced_layout.addStretch()
         tabs.addTab(advanced_tab, "Advanced")
@@ -336,11 +346,11 @@ class SettingsDialog(QDialog):
             'retry_count': self.retry_spin.value(),
             'default_passive': self.passive_check.isChecked(),
             'buffer_size': self.buffer_size_spin.value(),
-            'max_concurrent_transfers': self.max_concurrent_spin.value(),
-            'auto_retry': self.auto_retry_check.isChecked(),
-            'show_progress': self.show_progress_check.isChecked(),
-            'enable_drag_drop': self.drag_drop_check.isChecked(),
-            'confirm_delete': self.confirm_delete_check.isChecked(),
+            'max_concurrent_transfers': self.max_concurrent_transfers_spin.value(),
+            'auto_retry': self.auto_retry_check.isChecked() if hasattr(self, 'auto_retry_check') else True,
+            'show_progress': self.show_progress_check.isChecked() if hasattr(self, 'show_progress_check') else True,
+            'enable_drag_drop': self.drag_drop_check.isChecked() if hasattr(self, 'drag_drop_check') else True,
+            'confirm_delete': self.confirm_delete_check.isChecked() if hasattr(self, 'confirm_delete_check') else True,
             'show_toolbar': self.show_toolbar_check.isChecked(),
             'show_statusbar': self.show_statusbar_check.isChecked(),
             'show_log_panel': self.show_log_panel_check.isChecked(),
@@ -361,7 +371,6 @@ class SettingsDialog(QDialog):
             'compression': self.compression_check.isChecked(),
             'prefetch': self.prefetch_check.isChecked(),
             'cache_size': self.cache_size_spin.value(),
-            'max_concurrent_transfers': self.max_concurrent_transfers_spin.value(),
             'speed_limit_enabled': self.speed_limit_check.isChecked(),
             'speed_limit': self.speed_limit_spin.value(),
             'auto_resume_transfers': self.auto_resume_transfers_check.isChecked()
@@ -385,11 +394,11 @@ class SettingsDialog(QDialog):
             'retry_count': self.retry_spin.value(),
             'default_passive': self.passive_check.isChecked(),
             'buffer_size': self.buffer_size_spin.value(),
-            'max_concurrent_transfers': self.max_concurrent_spin.value(),
-            'auto_retry': self.auto_retry_check.isChecked(),
-            'show_progress': self.show_progress_check.isChecked(),
-            'enable_drag_drop': self.drag_drop_check.isChecked(),
-            'confirm_delete': self.confirm_delete_check.isChecked(),
+            'max_concurrent_transfers': self.max_concurrent_transfers_spin.value(),
+            'auto_retry': self.auto_retry_check.isChecked() if hasattr(self, 'auto_retry_check') else True,
+            'show_progress': self.show_progress_check.isChecked() if hasattr(self, 'show_progress_check') else True,
+            'enable_drag_drop': self.drag_drop_check.isChecked() if hasattr(self, 'drag_drop_check') else True,
+            'confirm_delete': self.confirm_delete_check.isChecked() if hasattr(self, 'confirm_delete_check') else True,
             'show_toolbar': self.show_toolbar_check.isChecked(),
             'show_statusbar': self.show_statusbar_check.isChecked(),
             'show_log_panel': self.show_log_panel_check.isChecked(),
@@ -409,7 +418,10 @@ class SettingsDialog(QDialog):
             'keep_alive_interval': self.keep_alive_interval_spin.value(),
             'compression': self.compression_check.isChecked(),
             'prefetch': self.prefetch_check.isChecked(),
-            'cache_size': self.cache_size_spin.value()
+            'cache_size': self.cache_size_spin.value(),
+            'speed_limit_enabled': self.speed_limit_check.isChecked(),
+            'speed_limit': self.speed_limit_spin.value(),
+            'auto_resume_transfers': self.auto_resume_transfers_check.isChecked()
         }
     
     def accept(self):

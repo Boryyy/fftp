@@ -50,48 +50,34 @@ class FftpStatusBar(QStatusBar):
         self.remote_total_size = 0
 
     def _apply_styles(self):
-        """Apply styling to status bar components"""
+        """Apply simple styling to status bar components"""
         base_style = """
             QLabel {
-                color: #2c3e50;
-                font-size: 11px;
-                padding: 2px 6px;
-                border-left: 1px solid #bdc3c7;
+                font-size: 10px;
+                padding: 2px 8px;
+                border-left: 1px solid #cccccc;
             }
         """
 
         self.connection_status.setStyleSheet(base_style + """
             QLabel {
-                font-weight: 600;
-                color: #e74c3c;
+                font-weight: bold;
             }
         """)
 
-        self.current_directory.setStyleSheet(base_style + """
-            QLabel {
-                font-weight: 500;
-                color: #3498db;
-            }
-        """)
-
+        self.current_directory.setStyleSheet(base_style)
         self.file_info.setStyleSheet(base_style)
-        self.selection_info.setStyleSheet(base_style + """
-            QLabel {
-                font-weight: 500;
-            }
-        """)
+        self.selection_info.setStyleSheet(base_style)
 
         self.transfer_progress.setStyleSheet("""
             QProgressBar {
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
+                border: 1px solid #cccccc;
+                border-radius: 2px;
                 text-align: center;
-                font-size: 10px;
-                background-color: #ffffff;
+                font-size: 9px;
             }
             QProgressBar::chunk {
-                background-color: #3498db;
-                border-radius: 2px;
+                background-color: #0078d4;
             }
         """)
 

@@ -44,11 +44,24 @@ class ConnectionManagerDialog(QDialog):
         # Add root items
         self.sites_root = QTreeWidgetItem(self.site_tree)
         self.sites_root.setText(0, "My Sites")
-        self.sites_root.setIcon(0, QIcon("folder.png"))
+        # Get icon from theme manager if available
+        try:
+            from .icon_themes import get_icon_theme_manager
+            icon_manager = get_icon_theme_manager()
+            folder_icon = icon_manager.get_file_icon('folder')
+            self.sites_root.setIcon(0, folder_icon)
+        except:
+            pass  # No icon available
 
         self.bookmarks_root = QTreeWidgetItem(self.site_tree)
         self.bookmarks_root.setText(0, "Global Bookmarks")
-        self.bookmarks_root.setIcon(0, QIcon("folder.png"))
+        try:
+            from .icon_themes import get_icon_theme_manager
+            icon_manager = get_icon_theme_manager()
+            folder_icon = icon_manager.get_file_icon('folder')
+            self.bookmarks_root.setIcon(0, folder_icon)
+        except:
+            pass  # No icon available
 
         # Populate sites
         for conn in self.connections:
@@ -59,7 +72,18 @@ class ConnectionManagerDialog(QDialog):
 
             site_item = QTreeWidgetItem(self.sites_root)
             site_item.setText(0, name)
-            site_item.setIcon(0, QIcon("server.png"))
+            # Try to get server icon from theme manager
+            try:
+                from .icon_themes import get_icon_theme_manager
+                icon_manager = get_icon_theme_manager()
+                server_icon = icon_manager.get_ui_icon('server')
+                if server_icon:
+                    site_item.setIcon(0, server_icon)
+                else:
+                    # Fallback to a generic icon
+                    site_item.setIcon(0, icon_manager.get_file_icon('file'))
+            except:
+                pass  # No icon available
             site_item.setData(0, Qt.ItemDataRole.UserRole, conn)
 
         self.site_tree.expandAll()
@@ -193,7 +217,6 @@ class ConnectionManagerDialog(QDialog):
     
     def save_current_connection(self):
         """Save current connection settings"""
-        print(f"DIALOG DEBUG: save_current_connection called")
         if not all([self.name_input.text(), self.host_input.text(),
                    self.user_input.text(), self.pass_input.text()]):
             QMessageBox.warning(self, "Error", "Please fill in all required fields")
@@ -201,12 +224,9 @@ class ConnectionManagerDialog(QDialog):
 
         config = self.get_config()
         if config:
-            print(f"DIALOG DEBUG: Saving connection: {config.name}")
             current = self.site_tree.currentItem()
-            print(f"DIALOG DEBUG: Current item: {current}, has data: {current.data(0, Qt.ItemDataRole.UserRole) if current else None}")
 
             if current and current.data(0, Qt.ItemDataRole.UserRole):
-                print("DIALOG DEBUG: Updating existing site")
                 # Update existing site
                 current.setText(0, config.name)
                 new_conn_data = {
@@ -229,17 +249,12 @@ class ConnectionManagerDialog(QDialog):
                         conn.get('name') == getattr(self.selected_config, 'name', None)):
                         self.connections[i] = new_conn_data
                         updated = True
-                        print(f"DIALOG DEBUG: Updated connection at index {i}")
                         break
                 if not updated:
-                    print("DIALOG DEBUG: Could not find connection to update, appending new one")
                     self.connections.append(new_conn_data)
-            else:
-                print("DIALOG DEBUG: Adding new site")
                 # Add new site
                 self.add_connection_to_tree(config)
 
-            print(f"DIALOG DEBUG: Connections list now has {len(self.connections)} items")
             QMessageBox.information(self, "Success", "Connection saved successfully")
             self.save_connections()
 
@@ -453,15 +468,9 @@ class ConnectionManagerDialog(QDialog):
                         'ssl_implicit': getattr(conn, 'ssl_implicit', False)
                     })
             
-            print(f"SITE MANAGER DEBUG: Attempting to save {len(conn_dicts)} connections")
-            for i, conn in enumerate(conn_dicts):
-                print(f"SITE MANAGER DEBUG: Connection {i+1}: {conn.get('name', 'unnamed')} - {conn.get('host', 'no host')}")
-
             if self.encryption_manager.encrypt_connections(conn_dicts, password):
-                print(f"SITE MANAGER DEBUG: Successfully saved connections")
                 QMessageBox.information(self, "Success", "Connections saved and encrypted successfully")
             else:
-                print(f"SITE MANAGER DEBUG: Failed to save connections")
                 QMessageBox.critical(self, "Error", "Failed to save connections")
     
     def add_connection(self, config: ConnectionConfig):
