@@ -282,15 +282,35 @@ class FTPManager:
             protocol_name = "FTPS" if (self.config.protocol == "ftps" or self.config.use_ssl) else "FTP"
             return True, f"{protocol_name} connected"
         except ftplib.error_perm as e:
-            return False, f"FTP Authentication Error: {str(e)}"
+            error_msg = str(e).strip()
+            if not error_msg:
+                error_msg = "Authentication failed - check username and password"
+            return False, f"FTP Authentication Error: {error_msg}"
         except ftplib.error_temp as e:
-            return False, f"FTP Temporary Error: {str(e)}"
-        except ConnectionRefusedError:
-            return False, f"Connection refused. Check host and port."
-        except TimeoutError:
-            return False, f"Connection timeout. Check host and port."
+            error_msg = str(e).strip()
+            if not error_msg:
+                error_msg = "Temporary server error - try again later"
+            return False, f"FTP Temporary Error: {error_msg}"
+        except ConnectionRefusedError as e:
+            return False, f"Connection refused by {self.config.host}:{self.config.port}. Check if server is running and firewall settings."
+        except TimeoutError as e:
+            return False, f"Connection timeout to {self.config.host}:{self.config.port}. Check network connectivity and server response time."
+        except OSError as e:
+            # Socket errors, DNS resolution, etc.
+            error_code = getattr(e, 'errno', None)
+            if error_code == 11001:  # Windows DNS error
+                return False, f"DNS resolution failed for {self.config.host}. Check hostname spelling."
+            elif error_code == 10061:  # Windows connection refused
+                return False, f"Connection refused by {self.config.host}:{self.config.port}. Server may be down or blocking connections."
+            elif error_code == 10060:  # Windows timeout
+                return False, f"Connection timeout to {self.config.host}:{self.config.port}. Network may be slow or server unresponsive."
+            else:
+                return False, f"Network error connecting to {self.config.host}:{self.config.port}: {str(e)}"
         except Exception as e:
-            return False, f"FTP Error: {str(e)}"
+            error_msg = str(e).strip()
+            if not error_msg:
+                error_msg = "Unknown connection error"
+            return False, f"FTP Error: {error_msg} (Host: {self.config.host}:{self.config.port})"
     
     def get_current_directory(self) -> str:
         """Get current working directory"""

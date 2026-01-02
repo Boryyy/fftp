@@ -220,27 +220,7 @@ class SettingsDialog(QDialog):
         security_group.setLayout(security_form)
         security_layout.addWidget(security_group)
         
-        logging_group = QGroupBox("Logging")
-        logging_form = QFormLayout()
-        
-        self.enable_file_logging_check = QCheckBox("Enable File Logging")
-        self.enable_file_logging_check.setChecked(self.settings.get('enable_file_logging', True))
-        logging_form.addRow(self.enable_file_logging_check)
-        
-        self.log_level_combo = QComboBox()
-        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
-        log_level = self.settings.get('log_level', 'INFO')
-        self.log_level_combo.setCurrentText(log_level)
-        logging_form.addRow("Log Level:", self.log_level_combo)
-        
-        self.log_retention_spin = QSpinBox()
-        self.log_retention_spin.setRange(1, 365)
-        self.log_retention_spin.setValue(self.settings.get('log_retention_days', 30))
-        self.log_retention_spin.setSuffix(" days")
-        logging_form.addRow("Log Retention:", self.log_retention_spin)
-        
-        logging_group.setLayout(logging_form)
-        security_layout.addWidget(logging_group)
+        # Logging settings removed - logging is always enabled
         
         security_layout.addStretch()
         tabs.addTab(security_tab, "Security")
@@ -376,9 +356,6 @@ class SettingsDialog(QDialog):
             'lock_timeout': self.lock_timeout_spin.value(),
             'clear_password_on_disconnect': self.clear_password_on_disconnect_check.isChecked(),
             'remember_master_password': self.remember_master_password_check.isChecked(),
-            'enable_file_logging': self.enable_file_logging_check.isChecked(),
-            'log_level': self.log_level_combo.currentText(),
-            'log_retention_days': self.log_retention_spin.value(),
             'keep_alive': self.keep_alive_check.isChecked(),
             'keep_alive_interval': self.keep_alive_interval_spin.value(),
             'compression': self.compression_check.isChecked(),
@@ -428,9 +405,6 @@ class SettingsDialog(QDialog):
             'lock_timeout': self.lock_timeout_spin.value(),
             'clear_password_on_disconnect': self.clear_password_on_disconnect_check.isChecked(),
             'remember_master_password': self.remember_master_password_check.isChecked(),
-            'enable_file_logging': self.enable_file_logging_check.isChecked(),
-            'log_level': self.log_level_combo.currentText(),
-            'log_retention_days': self.log_retention_spin.value(),
             'keep_alive': self.keep_alive_check.isChecked(),
             'keep_alive_interval': self.keep_alive_interval_spin.value(),
             'compression': self.compression_check.isChecked(),

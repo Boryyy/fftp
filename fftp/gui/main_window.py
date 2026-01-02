@@ -388,9 +388,8 @@ class FTPClientGUI(QMainWindow):
         self.view_splitter.addWidget(self.create_local_pane())
         self.view_splitter.addWidget(self.create_remote_pane())
 
-        # Create queue and log panels
+        # Create queue panel only (removed activity log)
         self.queue_log_splitter.addWidget(self.create_queue_panel())
-        self.queue_log_splitter.addWidget(self.create_log_panel_bottom())
 
         # Set splitter sizes 
         self.top_splitter.setSizes([150, self.height() - 150])  # Log panel at top
@@ -1261,15 +1260,6 @@ class FTPClientGUI(QMainWindow):
             }.get(level, logging.INFO)
             self.file_logger.log(log_level, message)
     
-    def clear_log(self):
-        """Clear all log panels"""
-        if hasattr(self, 'message_log_text'):
-            self.message_log_text.clear()
-        if hasattr(self, 'activity_log_text'):
-            self.activity_log_text.clear()
-        if hasattr(self, 'log_messages'):
-            self.log_messages.clear()
-        self.log("All logs cleared")
     
     def show_settings(self):
         """Show settings dialog"""

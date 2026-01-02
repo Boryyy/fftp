@@ -138,7 +138,7 @@ class ConnectionTab(QWidget):
                 background-color: #bdc3c7;
             }
         """)
-        remote_new_folder_btn.clicked.connect(self.create_remote_folder)
+        remote_new_folder_btn.clicked.connect(lambda: self.parent().create_remote_folder())
         remote_path_layout.addWidget(remote_new_folder_btn)
 
         remote_layout.addLayout(remote_path_layout)
