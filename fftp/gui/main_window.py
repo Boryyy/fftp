@@ -4,6 +4,7 @@ Main application window
 
 import json
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -47,6 +48,14 @@ from .transfer_engine import TransferEngine
 from .search_dialog import SearchDialog
 from .filter_manager import FilterManager
 from .comparison import ComparisonManager
+# Panel imports
+from .windows.local_panel import LocalFilePanel
+from .windows.remote_panel import RemoteFilePanel
+from .windows.queue_panel import QueuePanel
+from .windows.status_panel import StatusPanel
+from .windows.remote_panel import RemoteFilePanel
+from .windows.queue_panel import QueuePanel
+from .windows.status_panel import StatusPanel
 
 
 class FTPClientGUI(QMainWindow):
@@ -97,6 +106,12 @@ class FTPClientGUI(QMainWindow):
 
         # Keyboard shortcuts manager
         self.keyboard_shortcuts = KeyboardShortcutsManager(self)
+
+        # Initialize panel components
+        self.local_panel = LocalFilePanel(self, self.current_local_path)
+        self.remote_panel = RemoteFilePanel(self)
+        self.queue_panel = QueuePanel(self)
+        self.status_panel = StatusPanel(self)
 
         # Icon theme manager (lazy initialized)
         self.icon_theme_manager = get_icon_theme_manager()
@@ -284,8 +299,11 @@ class FTPClientGUI(QMainWindow):
         """)
         self.connect_btn.clicked.connect(self.quick_connect)
         connect_layout.addWidget(self.connect_btn)
-        
+
         toolbar.addWidget(connect_widget)
+
+        # Debug: Check if quick connect widgets are created
+        self.log(f"DEBUG: Quick connect widgets created - Host: {hasattr(self, 'quick_host')}, User: {hasattr(self, 'quick_user')}, Pass: {hasattr(self, 'quick_pass')}, Port: {hasattr(self, 'quick_port')}, Connect: {hasattr(self, 'connect_btn')}")
         
         toolbar.addSeparator()
         
@@ -341,7 +359,10 @@ class FTPClientGUI(QMainWindow):
         """)
         refresh_btn.clicked.connect(self.refresh_files)
         toolbar.addWidget(refresh_btn)
-        
+
+        # Ensure toolbar is visible
+        toolbar.setVisible(True)
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -361,24 +382,37 @@ class FTPClientGUI(QMainWindow):
         self.queue_log_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Setup splitter hierarchy
-        self.top_splitter.addWidget(self.create_log_panel())
+        self.top_splitter.addWidget(self.status_panel)
         self.top_splitter.addWidget(self.bottom_splitter)
 
         self.bottom_splitter.addWidget(self.view_splitter)
         self.bottom_splitter.addWidget(self.queue_log_splitter)
 
-        # Create local and remote panes
-        self.view_splitter.addWidget(self.create_local_pane())
-        self.view_splitter.addWidget(self.create_remote_pane())
+        # Add local and remote panes
+        self.view_splitter.addWidget(self.local_panel)
+        self.view_splitter.addWidget(self.remote_panel)
 
-        # Create queue panel only (removed activity log)
-        self.queue_log_splitter.addWidget(self.create_queue_panel())
+        # Set remote tabs reference for backward compatibility
+        # Remote tabs are now managed by remote_panel
 
-        # Set splitter sizes 
-        self.top_splitter.setSizes([150, self.height() - 150])  # Log panel at top
-        self.bottom_splitter.setSizes([self.height() - 300, 150])  # Queue at bottom
-        self.view_splitter.setSizes([self.width() // 2, self.width() // 2])  # Equal local/remote
+        # Add queue panel
+        self.queue_log_splitter.addWidget(self.queue_panel)
+
+        # Set splitter sizes with proper proportions
+        self.top_splitter.setSizes([150, 400])  # Log panel at top
+        self.bottom_splitter.setSizes([300, 150])  # Main area and queue
+        self.view_splitter.setSizes([300, 300])  # Equal local/remote with minimums
         self.queue_log_splitter.setSizes([100, 50])  # Queue larger than log
+
+        # Set stretch factors for proper resizing
+        self.top_splitter.setStretchFactor(0, 0)  # Log panel doesn't stretch
+        self.top_splitter.setStretchFactor(1, 1)  # Main area stretches
+        self.bottom_splitter.setStretchFactor(0, 1)  # View area stretches
+        self.bottom_splitter.setStretchFactor(1, 0)  # Queue doesn't stretch much
+        self.view_splitter.setStretchFactor(0, 1)  # Local panel stretches
+        self.view_splitter.setStretchFactor(1, 1)  # Remote panel stretches
+        self.queue_log_splitter.setStretchFactor(0, 1)  # Queue stretches
+        self.queue_log_splitter.setStretchFactor(1, 0)  # Log doesn't stretch
 
         main_layout.addWidget(self.top_splitter)
 
@@ -387,388 +421,13 @@ class FTPClientGUI(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.update_connection_status("Ready")
 
-    def create_log_panel(self):
-        """Create the top message log panel"""
-        log_widget = QWidget()
-        log_layout = QVBoxLayout(log_widget)
-        log_layout.setContentsMargins(4, 4, 4, 4)
+# create_log_panel method removed - now using status_panel
 
-        # Header with clear button
-        log_header = QHBoxLayout()
-        log_label = QLabel("Message Log")
-        log_label.setStyleSheet("font-weight: 600; color: #2c3e50;")
-        log_header.addWidget(log_label)
+# create_local_pane method removed - now using LocalFilePanel class
 
-        log_header.addStretch()
+# create_remote_pane method removed - now using RemoteFilePanel class
 
-        log_layout.addLayout(log_header)
-
-        # Message log text area
-        self.message_log_text = QPlainTextEdit()
-        self.message_log_text.setReadOnly(True)
-        self.message_log_text.setMaximumBlockCount(500)
-        self.message_log_text.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #ffffff;
-                color: #2c3e50;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 10px;
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-                padding: 4px;
-            }
-        """)
-        log_layout.addWidget(self.message_log_text)
-
-        return log_widget
-
-    def create_local_pane(self):
-        """Create the local file pane with tree and list"""
-        local_widget = QWidget()
-        local_layout = QVBoxLayout(local_widget)
-        local_layout.setContentsMargins(6, 6, 6, 6)
-        local_layout.setSpacing(4)
-
-        # Header with path and controls
-        local_header = QHBoxLayout()
-        local_label = QLabel("Local site:")
-        local_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 11px;")
-        local_header.addWidget(local_label)
-
-        self.local_path_edit = QLineEdit()
-        self.local_path_edit.setText(self.current_local_path)
-        self.local_path_edit.returnPressed.connect(self.navigate_local_path)
-        self.local_path_edit.setStyleSheet("""
-            QLineEdit {
-                font-size: 11px;
-                padding: 6px 8px;
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #ffffff;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
-        local_header.addWidget(self.local_path_edit)
-
-        # Control buttons
-        self.local_up_btn = QPushButton("Up")
-        self.local_up_btn.setToolTip("Go to parent directory")
-        self.local_up_btn.setMaximumWidth(32)
-        self.local_up_btn.clicked.connect(self.local_up)
-        self.local_up_btn.setStyleSheet("""
-            QPushButton {
-                font-size: 12px;
-                padding: 4px;
-                border: 1px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #f8f9fa;
-            }
-            QPushButton:hover {
-                background-color: #e9ecef;
-            }
-            QPushButton:pressed {
-                background-color: #dee2e6;
-            }
-        """)
-        local_header.addWidget(self.local_up_btn)
-
-        self.local_refresh_btn = QPushButton("Refresh")
-        self.local_refresh_btn.setToolTip("Refresh local files")
-        self.local_refresh_btn.setMaximumWidth(32)
-        self.local_refresh_btn.clicked.connect(self.load_local_files)
-        self.local_refresh_btn.setStyleSheet("""
-            QPushButton {
-                font-size: 12px;
-                padding: 4px;
-                border: 1px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #f8f9fa;
-            }
-            QPushButton:hover {
-                background-color: #e9ecef;
-            }
-            QPushButton:pressed {
-                background-color: #dee2e6;
-            }
-        """)
-        local_header.addWidget(self.local_refresh_btn)
-
-        self.local_new_folder_btn = QPushButton("New Folder")
-        self.local_new_folder_btn.setToolTip("Create new folder")
-        self.local_new_folder_btn.setMaximumWidth(32)
-        self.local_new_folder_btn.clicked.connect(self.create_local_folder)
-        self.local_new_folder_btn.setStyleSheet("""
-            QPushButton {
-                font-size: 12px;
-                padding: 4px;
-                border: 1px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #f8f9fa;
-            }
-            QPushButton:hover {
-                background-color: #e9ecef;
-            }
-            QPushButton:pressed {
-                background-color: #dee2e6;
-            }
-        """)
-        local_header.addWidget(self.local_new_folder_btn)
-
-        local_layout.addLayout(local_header)
-
-        # Local file browser (tree + list)
-        local_browser = QSplitter(Qt.Orientation.Horizontal)
-
-        # Local tree view
-        self.local_tree = QTreeView()
-        self.local_tree.setHeaderHidden(True)
-        self.local_tree.setRootIsDecorated(True)
-        self.local_tree.setAnimated(False)
-        self.local_tree.setIndentation(15)
-        self.local_tree.setStyleSheet("""
-            QTreeView {
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                background-color: #ffffff;
-                font-size: 10px;
-            }
-            QTreeView::item {
-                padding: 3px;
-                border: none;
-                color: #2c3e50;
-            }
-            QTreeView::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTreeView::item:hover {
-                background-color: #ecf0f1;
-            }
-        """)
-        self.local_tree_model = QFileSystemModel()
-        self.local_tree_model.setRootPath("")
-        self.local_tree_model.setFilter(QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
-        self.local_tree.setModel(self.local_tree_model)
-        self.local_tree.setRootIndex(self.local_tree_model.index(self.current_local_path))
-        self.local_tree.clicked.connect(self.on_local_tree_clicked)
-        self.local_tree.doubleClicked.connect(self.on_local_tree_double_clicked)
-        self.local_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.local_tree.customContextMenuRequested.connect(self.show_local_tree_context_menu)
-        local_browser.addWidget(self.local_tree)
-
-        # Local list view
-        drag_drop_enabled = True
-        self.local_table = DragDropTableWidget(
-            parent=self,
-            drop_callback=self._handle_local_drop,
-            drag_callback=self._handle_local_drag,
-            enabled=drag_drop_enabled
-        )
-        self.local_table.setColumnCount(4)
-        self.local_table.setHorizontalHeaderLabels(["Filename", "Filesize", "Filetype", "Last modified"])
-        self.local_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.local_table.setAlternatingRowColors(True)
-        self.local_table.setSortingEnabled(True)
-        self.local_table.doubleClicked.connect(self.on_local_table_double_click)
-        self.local_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.local_table.customContextMenuRequested.connect(self._show_local_context_menu)
-        self.local_table.itemSelectionChanged.connect(self._on_local_selection_changed)
-
-        # Enable editing for renaming
-        self.local_table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked | QTableWidget.EditTrigger.EditKeyPressed)
-        self.local_table.itemChanged.connect(self._on_local_item_changed)
-        self.local_table.setStyleSheet("""
-            QTableWidget {
-                border: 2px solid #bdc3c7;
-                border-radius: 4px;
-                font-size: 10px;
-                gridline-color: #ecf0f1;
-                background-color: #ffffff;
-                color: #2c3e50;
-            }
-            QTableWidget::item {
-                padding: 4px 6px;
-                color: #2c3e50;
-            }
-            QTableWidget::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTableWidget::item:hover {
-                background-color: #ecf0f1;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                padding: 8px 6px;
-                border: none;
-                border-bottom: 2px solid #bdc3c7;
-                border-right: 1px solid #bdc3c7;
-                font-weight: 600;
-                font-size: 10px;
-                color: #2c3e50;
-            }
-        """)
-        self.local_table.setColumnWidth(0, 200)
-        self.local_table.setColumnWidth(1, 80)
-        self.local_table.setColumnWidth(2, 80)
-        self.local_table.setColumnWidth(3, 120)
-        local_browser.addWidget(self.local_table)
-
-        local_browser.setSizes([150, 350])
-        local_layout.addWidget(local_browser)
-
-        self.load_local_files()
-        return local_widget
-
-    def create_remote_pane(self):
-        """Create the remote file pane with tabs for multiple connections"""
-        remote_widget = QWidget()
-        remote_layout = QVBoxLayout(remote_widget)
-        remote_layout.setContentsMargins(6, 6, 6, 6)
-        remote_layout.setSpacing(4)
-
-        # Remote tabs
-        self.remote_tabs = QTabWidget()
-        self.remote_tabs.setTabsClosable(True)
-        self.remote_tabs.tabCloseRequested.connect(self.close_connection_tab)
-        self.remote_tabs.currentChanged.connect(self.on_tab_changed)
-
-        # Add initial "New Connection" tab
-        welcome_tab = QWidget()
-        welcome_layout = QVBoxLayout(welcome_tab)
-        welcome_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        welcome_label = QLabel("Welcome to Fftp\n\nQuick Connect:")
-        welcome_label.setStyleSheet("font-size: 14px; color: #34495e; text-align: center;")
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_layout.addWidget(welcome_label)
-
-        # Quick connect form
-        quick_form = QWidget()
-        quick_form_layout = QFormLayout(quick_form)
-
-        welcome_host = QLineEdit()
-        welcome_host.setPlaceholderText("hostname or IP address")
-        quick_form_layout.addRow("Host:", welcome_host)
-
-        welcome_port = QSpinBox()
-        welcome_port.setRange(1, 65535)
-        welcome_port.setValue(21)
-        quick_form_layout.addRow("Port:", welcome_port)
-
-        welcome_user = QLineEdit()
-        welcome_user.setPlaceholderText("username")
-        quick_form_layout.addRow("User:", welcome_user)
-
-        welcome_pass = QLineEdit()
-        welcome_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        welcome_pass.setPlaceholderText("password")
-        quick_form_layout.addRow("Password:", welcome_pass)
-
-        connect_btn = QPushButton("Quick Connect")
-        connect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: #ffffff;
-                font-weight: 600;
-                padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 12px;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        connect_btn.clicked.connect(lambda: QMessageBox.information(self, "Welcome", "Use the main Fftp interface to connect to servers."))
-
-        quick_form_layout.addRow(connect_btn)
-        welcome_layout.addWidget(quick_form)
-
-        welcome_layout.addStretch()
-        self.remote_tabs.addTab(welcome_tab, "New Connection")
-
-        remote_layout.addWidget(self.remote_tabs)
-        return remote_widget
-
-    def create_queue_panel(self):
-        """Create the transfer queue panel"""
-        queue_widget = QWidget()
-        queue_layout = QVBoxLayout(queue_widget)
-        queue_layout.setContentsMargins(4, 4, 4, 4)
-
-        # Queue header
-        queue_header = QHBoxLayout()
-        queue_label = QLabel("Transfer Queue")
-        queue_label.setStyleSheet("font-weight: 600; color: #2c3e50;")
-        queue_header.addWidget(queue_label)
-
-        queue_header.addStretch()
-
-        # Queue control buttons removed as requested
-
-        queue_layout.addLayout(queue_header)
-
-        # Queue tabs (Active/Completed)
-        self.queue_tabs = QTabWidget()
-
-        # Active transfers tab
-        active_tab = QWidget()
-        active_layout = QVBoxLayout(active_tab)
-        self.active_queue_table = QTableWidget()
-        self.active_queue_table.setColumnCount(5)
-        self.active_queue_table.setHorizontalHeaderLabels(["Direction", "Local File", "Remote File", "Size", "Status"])
-        self.active_queue_table.setAlternatingRowColors(True)
-        self.active_queue_table.setStyleSheet("""
-            QTableWidget {
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-                font-size: 10px;
-                background-color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                padding: 6px;
-                border: none;
-                border-bottom: 1px solid #bdc3c7;
-                font-weight: 600;
-                font-size: 10px;
-            }
-        """)
-        active_layout.addWidget(self.active_queue_table)
-        self.queue_tabs.addTab(active_tab, "Active")
-
-        # Completed transfers tab
-        completed_tab = QWidget()
-        completed_layout = QVBoxLayout(completed_tab)
-        self.completed_queue_table = QTableWidget()
-        self.completed_queue_table.setColumnCount(5)
-        self.completed_queue_table.setHorizontalHeaderLabels(["Direction", "Local File", "Remote File", "Size", "Time"])
-        self.completed_queue_table.setAlternatingRowColors(True)
-        self.completed_queue_table.setStyleSheet("""
-            QTableWidget {
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-                font-size: 10px;
-                background-color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                padding: 6px;
-                border: none;
-                border-bottom: 1px solid #bdc3c7;
-                font-weight: 600;
-                font-size: 10px;
-            }
-        """)
-        completed_layout.addWidget(self.completed_queue_table)
-        self.queue_tabs.addTab(completed_tab, "Completed")
-
-        queue_layout.addWidget(self.queue_tabs)
-
-        return queue_widget
+# create_queue_panel method removed - now using QueuePanel class
 
     def create_log_panel_bottom(self):
         """Create the bottom log panel (minimal)"""
@@ -798,130 +457,6 @@ class FTPClientGUI(QMainWindow):
         log_layout.addWidget(self.activity_log_text)
 
         return log_widget
-        local_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: 700;
-                font-size: 13px;
-                border: 2px solid #bdc3c7;
-                border-radius: 6px;
-                margin-top: 14px;
-                padding-top: 18px;
-                background-color: #ffffff;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 14px;
-                padding: 0 8px;
-                background-color: #ffffff;
-                color: #3498db;
-            }
-        """)
-        local_layout = QVBoxLayout(local_group)
-        local_layout.setContentsMargins(8, 8, 8, 8)
-        local_layout.setSpacing(4)
-        
-        local_path_layout = QHBoxLayout()
-        local_path_layout.setSpacing(6)
-        path_label = QLabel("Local site:")
-        path_label.setMinimumWidth(85)
-        path_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px;")
-        local_path_layout.addWidget(path_label)
-        self.local_path_edit = QLineEdit()
-        self.local_path_edit.setText(self.current_local_path)
-        self.local_path_edit.returnPressed.connect(self.navigate_local_path)
-        self.local_path_edit.setStyleSheet("font-size: 12px; padding: 8px 12px; border: 2px solid #bdc3c7; border-radius: 5px;")
-        local_path_layout.addWidget(self.local_path_edit, 1)
-        local_layout.addLayout(local_path_layout)
-        
-        local_splitter = QSplitter(Qt.Orientation.Horizontal)
-        
-        self.local_tree = QTreeView()
-        self.local_tree.setHeaderHidden(True)
-        self.local_tree.setRootIsDecorated(True)
-        self.local_tree.setAnimated(False)
-        self.local_tree.setIndentation(15)
-        self.local_tree.setStyleSheet("""
-            QTreeView {
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                background-color: #ffffff;
-                font-size: 11px;
-            }
-            QTreeView::item {
-                padding: 4px;
-                border: none;
-                color: #2c3e50;
-            }
-            QTreeView::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTreeView::item:hover {
-                background-color: #ecf0f1;
-            }
-        """)
-        self.local_tree_model = QFileSystemModel()
-        self.local_tree_model.setRootPath("")
-        self.local_tree_model.setFilter(QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
-        self.local_tree.setModel(self.local_tree_model)
-        self.local_tree.setRootIndex(self.local_tree_model.index(self.current_local_path))
-        self.local_tree.clicked.connect(self.on_local_tree_clicked)
-        self.local_tree.doubleClicked.connect(self.on_local_tree_double_clicked)
-        self.local_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.local_tree.customContextMenuRequested.connect(self.show_local_tree_context_menu)
-        local_splitter.addWidget(self.local_tree)
-        
-        self.local_table = QTableWidget()
-        self.local_table.setColumnCount(4)
-        self.local_table.setHorizontalHeaderLabels(["Filename", "Filesize", "Filetype", "Last modified"])
-        self.local_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.local_table.setAlternatingRowColors(True)
-        self.local_table.setSortingEnabled(True)
-        self.local_table.doubleClicked.connect(self.on_local_table_double_click)
-        self.local_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.local_table.customContextMenuRequested.connect(self.show_local_context_menu)
-        self.local_table.setDragEnabled(True)
-        self.local_table.setDragDropMode(QTableWidget.DragDropMode.DragOnly)
-        self.local_table.setStyleSheet("""
-            QTableWidget {
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                font-size: 11px;
-                gridline-color: #ecf0f1;
-                background-color: #ffffff;
-                color: #2c3e50;
-            }
-            QTableWidget::item {
-                padding: 5px 8px;
-                color: #2c3e50;
-            }
-            QTableWidget::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTableWidget::item:hover {
-                background-color: #ecf0f1;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                padding: 10px 8px;
-                border: none;
-                border-bottom: 2px solid #bdc3c7;
-                border-right: 1px solid #bdc3c7;
-                font-weight: 700;
-                font-size: 11px;
-                color: #2c3e50;
-            }
-        """)
-        self.local_table.setColumnWidth(0, 250)
-        self.local_table.setColumnWidth(1, 100)
-        self.local_table.setColumnWidth(2, 100)
-        self.local_table.setColumnWidth(3, 150)
-        local_splitter.addWidget(self.local_table)
-        local_splitter.setSizes([200, 600])
-        
-        local_layout.addWidget(local_splitter, 1)
-        
     
     def create_menu_bar(self):
         """Create menu bar"""
@@ -1095,8 +630,10 @@ class FTPClientGUI(QMainWindow):
     
     def toggle_toolbar(self, checked):
         """Toggle toolbar visibility"""
+        self.log(f"TOOLBAR DEBUG: toggle_toolbar called with checked={checked}")
         for toolbar in self.findChildren(QToolBar):
             toolbar.setVisible(checked)
+            self.log(f"TOOLBAR DEBUG: Set toolbar visible={checked}")
     
     def toggle_statusbar(self, checked):
         """Toggle statusbar visibility"""
@@ -1142,9 +679,9 @@ class FTPClientGUI(QMainWindow):
             tab.manager = None
             self.manager = None
             title = tab.get_tab_title()
-            index = self.remote_tabs.indexOf(tab)
+            index = self.remote_panel.remote_tabs.indexOf(tab)
             if index >= 0:
-                self.remote_tabs.setTabText(index, title)
+                self.remote_panel.remote_tabs.setTabText(index, title)
     
     def reset_connect_button_style(self):
         """Reset connect button to default style"""
@@ -1184,11 +721,9 @@ class FTPClientGUI(QMainWindow):
         if hasattr(self, 'log_messages'):
             self.log_messages.append(log_entry)
         
-        # Update message log (top panel)
-        if hasattr(self, 'message_log_text') and (not hasattr(self, 'log_enabled_check_top') or self.log_enabled_check_top.isChecked()):
-            self.message_log_text.appendPlainText(log_entry)
-            scrollbar = self.message_log_text.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
+        # Update message log (status panel)
+        if hasattr(self, 'status_panel'):
+            self.status_panel.log(message, level)
 
         # Update activity log (bottom panel)
         if hasattr(self, 'activity_log_text'):
@@ -1227,6 +762,9 @@ class FTPClientGUI(QMainWindow):
 
         if 'max_concurrent_transfers' in settings:
             self.max_concurrent_transfers = settings['max_concurrent_transfers']
+
+        if 'show_toolbar' in settings:
+            self.toggle_toolbar(settings['show_toolbar'])
 
         if 'speed_limit_enabled' in settings and settings['speed_limit_enabled']:
             if 'speed_limit' in settings:
@@ -1469,14 +1007,53 @@ class FTPClientGUI(QMainWindow):
         dialog = MasterPasswordDialog(self, is_setup=False)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             password = dialog.get_password()
-            if password and self.encryption_manager.verify_master_password(password):
-                self.master_password = password
-                return password
+            self.log(f"PASSWORD DEBUG: Got password from dialog, length: {len(password) if password else 0}")
+            if password:
+                verification_result = self.encryption_manager.verify_master_password(password)
+                self.log(f"PASSWORD DEBUG: Password verification result: {verification_result}")
+                if verification_result:
+                    self.master_password = password
+                    self.log("PASSWORD DEBUG: Password verified successfully")
+                    return password
+                else:
+                    self.log("PASSWORD DEBUG: Password verification failed")
             else:
-                QMessageBox.warning(
-                    self, "Error",
-                    "Incorrect master password"
-                )
+                self.log("PASSWORD DEBUG: No password entered")
+            # Offer to reset master password if verification fails
+            reply = QMessageBox.question(
+                self, "Incorrect Password",
+                "The master password you entered is incorrect. Would you like to reset the master password?\n\n"
+                "Warning: This will delete all saved connections!",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                try:
+                    # Reset master password by removing the hash file
+                    import os
+                    if hasattr(self.encryption_manager, 'master_hash_file'):
+                        hash_file = self.encryption_manager.master_hash_file
+                        if hash_file.exists():
+                            os.remove(str(hash_file))
+                            self.log("Master password reset - hash file removed")
+
+                    # Also remove connections file to be safe
+                    if hasattr(self.encryption_manager, 'connections_file'):
+                        conn_file = self.encryption_manager.connections_file
+                        if conn_file.exists():
+                            os.remove(str(conn_file))
+                            self.log("Connections file removed for security")
+
+                    QMessageBox.information(
+                        self, "Password Reset",
+                        "Master password has been reset. You can now set a new password and save connections."
+                    )
+                    return None  # Return None to indicate reset
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to reset password: {e}")
+                    return None
+            else:
+                QMessageBox.warning(self, "Access Denied", "Cannot access site manager without correct password")
                 return None
         return None
     
@@ -1489,11 +1066,13 @@ class FTPClientGUI(QMainWindow):
         print(f"SITE MANAGER DEBUG: Has master password: {self.encryption_manager.has_master_password()}")
 
         if self.encryption_manager.has_master_password():
+            self.log("SITE MANAGER DEBUG: Master password exists, requesting verification")
             password = self.get_master_password()
             if not password:
-                print(f"SITE MANAGER DEBUG: Password verification failed, not opening site manager")
+                self.log("SITE MANAGER DEBUG: Password verification failed, not opening site manager")
                 return  # Don't open site manager if password is wrong
 
+            self.log("SITE MANAGER DEBUG: Password verified, decrypting connections")
             connections = self.encryption_manager.decrypt_connections(password)
             print(f"SITE MANAGER DEBUG: Successfully loaded {len(connections)} connections")
         else:
@@ -1514,6 +1093,7 @@ class FTPClientGUI(QMainWindow):
     
     def quick_connect(self):
         """Quick connect from toolbar"""
+        self.log("QUICK CONNECT: Method called")
         # Debug: Check if fields exist
         if not hasattr(self, 'quick_host'):
             QMessageBox.warning(self, "Error", "Host field not initialized")
@@ -1629,9 +1209,11 @@ class FTPClientGUI(QMainWindow):
         
         if success:
             title = tab.get_tab_title()
-            index = self.remote_tabs.indexOf(tab)
+            index = self.remote_panel.remote_tabs.indexOf(tab)
             if index >= 0:
-                self.remote_tabs.setTabText(index, title)
+                self.remote_panel.remote_tabs.setTabText(index, title)
+            # Update remote panel title
+            self.remote_panel.update_title()
     
     def refresh_files(self):
         """Refresh both local and remote file lists"""
@@ -1640,151 +1222,24 @@ class FTPClientGUI(QMainWindow):
             self.load_remote_files()
     
     def load_local_files(self):
-        """Load local directory into table"""
-        try:
-            path = Path(self.current_local_path)
-            if not path.exists():
-                path = Path.home()
-                self.current_local_path = str(path)
-            
-            if hasattr(self, 'local_tree') and hasattr(self, 'local_tree_model'):
-                index = self.local_tree_model.index(self.current_local_path)
-                if index.isValid():
-                    self.local_tree.setRootIndex(index)
-            
-            self.local_table.setSortingEnabled(False)
-            self.local_table.setRowCount(0)
-
-            # Collect file data for comparison
-            local_files_data = []
-
-            if path.parent != path:
-                row = self.local_table.rowCount()
-                self.local_table.insertRow(row)
-                self.local_table.setItem(row, 0, QTableWidgetItem(".."))
-                self.local_table.setItem(row, 1, QTableWidgetItem(""))
-                self.local_table.setItem(row, 2, QTableWidgetItem("<Parent Directory>"))
-                self.local_table.setItem(row, 3, QTableWidgetItem(""))
-
-            for item in sorted(path.iterdir()):
-                if item.is_dir():
-                    # Create file info for filtering
-                    file_info = {
-                        'name': item.name,
-                        'path': str(path),
-                        'full_path': str(item),
-                        'size': 0,
-                        'modified': datetime.fromtimestamp(item.stat().st_mtime),
-                        'is_dir': True
-                    }
-
-                    # Check if filtered
-                    if self.filter_manager.is_filtered(file_info):
-                        continue
-
-                    # Check if should be hidden in comparison mode
-                    if self.comparison_manager.comparator.should_hide_file(item.name):
-                        continue
-
-                    local_files_data.append(file_info)
-
-                    row = self.local_table.rowCount()
-                    self.local_table.insertRow(row)
-                    icon = self.icon_theme_manager.get_file_icon(item.name, is_dir=True)
-                    name_item = QTableWidgetItem(icon, item.name)
-                    self.local_table.setItem(row, 0, name_item)
-                    size_item = QTableWidgetItem("")
-                    size_item.setData(Qt.ItemDataRole.UserRole, 0)
-                    self.local_table.setItem(row, 1, size_item)
-                    self.local_table.setItem(row, 2, QTableWidgetItem("<Directory>"))
-                    try:
-                        mtime = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-                    except:
-                        mtime = ""
-                    self.local_table.setItem(row, 3, QTableWidgetItem(mtime))
-                    self.local_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, str(item))
-
-                    # Apply comparison highlighting
-                    comparison_result = self.comparison_manager.comparator.get_comparison_result(item.name, True)
-                    if comparison_result:
-                        color = self.comparison_manager.get_comparison_color(comparison_result)
-                        if color:
-                            name_item.setBackground(QColor(color))
-            
-            for item in sorted(path.iterdir()):
-                if item.is_file():
-                    # Create file info for filtering
-                    size = item.stat().st_size
-                    file_info = {
-                        'name': item.name,
-                        'path': str(path),
-                        'full_path': str(item),
-                        'size': size,
-                        'modified': datetime.fromtimestamp(item.stat().st_mtime),
-                        'is_dir': False
-                    }
-
-                    # Check if filtered
-                    if self.filter_manager.is_filtered(file_info):
-                        continue
-
-                    # Check if should be hidden in comparison mode
-                    if self.comparison_manager.comparator.should_hide_file(item.name):
-                        continue
-
-                    local_files_data.append(file_info)
-
-                    row = self.local_table.rowCount()
-                    self.local_table.insertRow(row)
-                    icon = self.icon_theme_manager.get_file_icon(item.name, is_dir=False)
-                    name_item = QTableWidgetItem(icon, item.name)
-                    self.local_table.setItem(row, 0, name_item)
-                    size_str = self.format_size(size)
-                    size_item = QTableWidgetItem(size_str)
-                    size_item.setData(Qt.ItemDataRole.UserRole, size)
-                    self.local_table.setItem(row, 1, size_item)
-                    self.local_table.setItem(row, 2, QTableWidgetItem(item.suffix or "File"))
-                    try:
-                        mtime = datetime.fromtimestamp(item.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-                    except:
-                        mtime = ""
-                    self.local_table.setItem(row, 3, QTableWidgetItem(mtime))
-                    self.local_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, str(item))
-
-                    # Apply comparison highlighting
-                    comparison_result = self.comparison_manager.comparator.get_comparison_result(item.name, True)
-                    if comparison_result:
-                        color = self.comparison_manager.get_comparison_color(comparison_result)
-                        if color:
-                            name_item.setBackground(QColor(color))
-
-            # Update comparison manager with local file data
-            self.comparison_manager.update_directory_data(True, local_files_data)
-
-            # Update status bar with directory info
-            self.status_bar.update_local_directory_info(self.current_local_path, local_files_data)
-
-            self.local_table.setSortingEnabled(True)
-            self.local_table.resizeColumnsToContents()
-            self.local_path_edit.setText(self.current_local_path)
-        except Exception as e:
-            self.statusBar().showMessage(f"Error loading local files: {str(e)}")
-            self.local_table.setSortingEnabled(True)
+        """Load local directory into table (delegates to local_panel)"""
+        if hasattr(self, 'local_panel'):
+            self.local_panel.load_local_files()
     
     def get_current_tab(self) -> Optional[ConnectionTab]:
-        """Get the currently active connection tab"""
-        if self.active_tab_id and self.active_tab_id in self.connection_tabs:
-            return self.connection_tabs[self.active_tab_id]
+        """Get the currently active connection tab (delegates to remote_panel)"""
+        if hasattr(self, 'remote_panel'):
+            return self.remote_panel.get_current_tab()
         return None
     
     def on_tab_changed(self, index):
         """Handle tab change"""
         if index >= 0:
-            widget = self.remote_tabs.widget(index)
+            widget = self.remote_panel.remote_tabs.widget(index)
             if widget:
                 tab_id = id(widget)
                 self.active_tab_id = tab_id
-                tab = self.connection_tabs.get(tab_id)
+                tab = self.remote_panel.connection_tabs.get(tab_id)
                 if tab:
                     self.manager = tab.manager
                     self.config = tab.config
@@ -1799,82 +1254,70 @@ class FTPClientGUI(QMainWindow):
                         tab.remote_table.doubleClicked.connect(self.on_remote_double_click)
                         tab.remote_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         tab.remote_table.customContextMenuRequested.connect(self.show_remote_context_menu)
-                        if hasattr(tab.remote_table, 'set_drag_drop_enabled'):
-                            drag_drop_enabled = self.settings.get('enable_drag_drop', True)
-                            tab.remote_table.set_drag_drop_enabled(drag_drop_enabled)
-                            tab.remote_table.drop_callback = self.handle_file_drop
-                    
-                    if tab.manager:
-                        if hasattr(self, 'disconnect_btn'):
-                            self.disconnect_btn.setEnabled(True)
-                        if hasattr(self, 'disconnect_action'):
-                            self.disconnect_action.setEnabled(True)
-                        if hasattr(self, 'connect_btn'):
-                            self.connect_btn.setText("Connected")
-                            self.connect_btn.setStyleSheet("""
-                                QPushButton {
-                                    background-color: #4caf50;
-                                    color: #ffffff;
-                                    font-weight: 600;
-                                    padding: 7px 16px;
-                                    border-radius: 5px;
-                                    font-size: 12px;
-                                }
-                                QPushButton:hover {
-                                    background-color: #45a049;
-                                }
-                                QPushButton:pressed {
-                                    background-color: #388e3c;
-                                }
-                            """)
-                    else:
-                        if hasattr(self, 'disconnect_btn'):
-                            self.disconnect_btn.setEnabled(False)
-                        if hasattr(self, 'disconnect_action'):
-                            self.disconnect_action.setEnabled(False)
-                        if hasattr(self, 'connect_btn'):
-                            self.connect_btn.setText("Connect")
-                            self.reset_connect_button_style()
+                    if hasattr(tab.remote_table, 'set_drag_drop_enabled'):
+                        drag_drop_enabled = self.settings.get('enable_drag_drop', True)
+                        tab.remote_table.set_drag_drop_enabled(drag_drop_enabled)
+                        tab.remote_table.drop_callback = self.handle_file_drop
+
+                # Update remote panel title when tab changes
+                self.remote_panel.update_title()
+
+                if tab and tab.manager:
+                    if hasattr(self, 'disconnect_btn'):
+                        self.disconnect_btn.setEnabled(True)
+                    if hasattr(self, 'disconnect_action'):
+                        self.disconnect_action.setEnabled(True)
+                    if hasattr(self, 'connect_btn'):
+                        self.connect_btn.setText("Connected")
+                        self.connect_btn.setStyleSheet("""
+                            QPushButton {
+                                background-color: #4caf50;
+                                color: #ffffff;
+                                font-weight: 600;
+                                padding: 7px 16px;
+                                border-radius: 5px;
+                                font-size: 12px;
+                            }
+                            QPushButton:hover {
+                                background-color: #45a049;
+                            }
+                            QPushButton:pressed {
+                                background-color: #388e3c;
+                            }
+                        """)
+                else:
+                    if hasattr(self, 'disconnect_btn'):
+                        self.disconnect_btn.setEnabled(False)
+                    if hasattr(self, 'disconnect_action'):
+                        self.disconnect_action.setEnabled(False)
+                    if hasattr(self, 'connect_btn'):
+                        self.connect_btn.setText("Connect")
+                        self.reset_connect_button_style()
     
     def close_connection_tab(self, index):
-        """Close a connection tab"""
-        widget = self.remote_tabs.widget(index)
-        if widget:
-            tab_id = id(widget)
-            tab = self.connection_tabs.get(tab_id)
-            if tab and tab.manager:
+        """Close a connection tab (delegates to remote_panel)"""
+        if hasattr(self, 'remote_panel'):
+            # Get the tab before closing to handle disconnection
+            widget = self.remote_panel.remote_tabs.widget(index)
+            if widget and hasattr(widget, 'manager') and widget.manager:
                 reply = QMessageBox.question(
                     self, "Close Connection",
-                    f"Close connection to {tab.config.host if tab.config else 'server'}?",
+                    f"Close connection to {widget.config.host if hasattr(widget, 'config') and widget.config else 'server'}?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     try:
-                        tab.manager.disconnect()
+                        widget.manager.disconnect()
                     except:
                         pass
-            
-            self.remote_tabs.removeTab(index)
-            if tab_id in self.connection_tabs:
-                del self.connection_tabs[tab_id]
-            
-            if self.remote_tabs.count() == 0:
-                new_tab = ConnectionTab(self)
-                new_tab_id = id(new_tab)
-                self.connection_tabs[new_tab_id] = new_tab
-                self.active_tab_id = new_tab_id
-                self.remote_tabs.addTab(new_tab, "New Connection")
+
+            self.remote_panel.close_tab(index)
     
     def create_new_tab(self, config: ConnectionConfig = None) -> ConnectionTab:
-        """Create a new connection tab"""
-        new_tab = ConnectionTab(self, config)
-        tab_id = id(new_tab)
-        self.connection_tabs[tab_id] = new_tab
-        self.active_tab_id = tab_id
-        title = new_tab.get_tab_title()
-        index = self.remote_tabs.addTab(new_tab, title)
-        self.remote_tabs.setCurrentIndex(index)
-        return new_tab
+        """Create a new connection tab (delegates to remote_panel)"""
+        if hasattr(self, 'remote_panel'):
+            return self.remote_panel.create_new_tab(config)
+        return None
     
     def load_remote_files(self):
         """Refresh remote file list in table"""
@@ -1951,7 +1394,7 @@ class FTPClientGUI(QMainWindow):
     def on_local_table_double_click(self, index):
         """Handle local table double-click"""
         row = index.row()
-        item = self.local_table.item(row, 0)
+        item = self.local_panel.local_table.item(row, 0)
         if not item:
             return
         
@@ -2049,8 +1492,8 @@ class FTPClientGUI(QMainWindow):
     
     def show_local_context_menu(self, position):
         """Show context menu for local files"""
-        selected_items = self.local_table.selectedItems()
-        self.context_menu_manager.create_local_context_menu(self.local_table, position, selected_items)
+        selected_items = self.local_panel.local_table.selectedItems()
+        self.context_menu_manager.create_local_context_menu(self.local_panel.local_table, position, selected_items)
     
     def show_remote_context_menu(self, position):
         """Show context menu for remote files"""
@@ -2063,45 +1506,69 @@ class FTPClientGUI(QMainWindow):
     
     def upload_selected_local(self):
         """Upload selected local file"""
+        self.log("UPLOAD DEBUG: Starting upload process")
         tab = self.get_current_tab()
         if not tab or not tab.manager:
+            self.log("UPLOAD ERROR: Not connected to server")
             QMessageBox.warning(self, "Not Connected", "Please connect to a server first")
             return
-        
+
         if hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected():
-            self.log("Connection lost during upload, reconnecting...", "warning")
+            self.log("UPLOAD WARNING: Connection lost, attempting to reconnect")
             self.reconnect_tab(tab)
             if not tab.manager or (hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected()):
+                self.log("UPLOAD ERROR: Could not reconnect")
                 QMessageBox.warning(self, "Connection Lost", "Could not reconnect. Please reconnect manually.")
                 return
-        
-        row = self.local_table.currentRow()
-        if row < 0:
-            return
-        
-        item = self.local_table.item(row, 0)
-        if not item:
-            return
-        
-        path_str = item.data(Qt.ItemDataRole.UserRole)
-        if not path_str:
-            return
-        
-        path = Path(path_str)
-        if path.is_file():
-            success = upload_file(
-                tab.manager, path, tab.current_remote_path,
-                log_callback=self.log,
-                status_callback=lambda msg: self.statusBar().showMessage(msg),
-                queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
-                move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
-                refresh_callback=self.load_remote_files,
-                format_size_func=self.format_size
-            )
-            if not success:
-                QMessageBox.critical(self, "Upload Error", f"Failed to upload {path.name}")
-                if self.queue_table.rowCount() > 0:
-                    self.queue_table.item(self.queue_table.rowCount() - 1, 4).setText("Error")
+
+        # Get selected rows instead of just current row
+        selected_rows = set()
+        for item in self.local_panel.local_table.selectedItems():
+            selected_rows.add(item.row())
+
+        if not selected_rows:
+            # If no selection, try to use current row
+            current_row = self.local_panel.local_table.currentRow()
+            if current_row >= 0:
+                selected_rows.add(current_row)
+                self.log("UPLOAD DEBUG: Using current row as selection")
+            else:
+                self.log("UPLOAD ERROR: No files selected in local table")
+                QMessageBox.warning(self, "No Selection", "Please select a file to upload first")
+                return
+
+        self.log(f"UPLOAD DEBUG: Selected {len(selected_rows)} items for upload")
+
+        for row in selected_rows:
+            item = self.local_panel.local_table.item(row, 0)
+            if not item:
+                self.log(f"UPLOAD ERROR: No item at row {row}")
+                continue
+
+            path_str = item.data(Qt.ItemDataRole.UserRole)
+            if not path_str:
+                self.log(f"UPLOAD ERROR: No path data for row {row}")
+                continue
+
+            path = Path(path_str)
+            if path.is_file():
+                self.log(f"UPLOAD DEBUG: Uploading file: {path} to {tab.current_remote_path}")
+                success = upload_file(
+                    tab.manager, path, tab.current_remote_path,
+                    log_callback=self.log,
+                    status_callback=lambda msg: self.statusBar().showMessage(msg),
+                    queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
+                    move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
+                    refresh_callback=self.load_remote_files,
+                    format_size_func=self.format_size
+                )
+                if not success:
+                    self.log(f"UPLOAD ERROR: Failed to upload {path.name}")
+                    QMessageBox.critical(self, "Upload Error", f"Failed to upload {path.name}")
+                    if self.queue_table.rowCount() > 0:
+                        self.queue_table.item(self.queue_table.rowCount() - 1, 4).setText("Error")
+            else:
+                self.log(f"UPLOAD WARNING: Skipping non-file item: {path}")
     
     def download_selected_remote(self):
         """Download selected remote file"""
@@ -2227,52 +1694,14 @@ class FTPClientGUI(QMainWindow):
             widget.update()
     
     def add_to_transfer_queue(self, direction, local_file, remote_file, size, status):
-        """Add transfer to active queue"""
-        if not hasattr(self, 'active_queue_table'):
-            return
-
-        row = self.active_queue_table.rowCount()
-        self.active_queue_table.insertRow(row)
-        self.active_queue_table.setItem(row, 0, QTableWidgetItem(direction))
-        self.active_queue_table.setItem(row, 1, QTableWidgetItem(local_file))
-        self.active_queue_table.setItem(row, 2, QTableWidgetItem(remote_file))
-        self.active_queue_table.setItem(row, 3, QTableWidgetItem(size))
-        # Set status to "Queued" if not specified
-        if not status:
-            status = "Queued"
-        self.active_queue_table.setItem(row, 4, QTableWidgetItem(status))
-
-        # Auto-start transfer if queue processing is enabled
-        if hasattr(self, 'auto_process_queue') and self.auto_process_queue:
-            self.process_next_transfer()
+        """Add transfer to active queue (delegates to queue_panel)"""
+        if hasattr(self, 'queue_panel'):
+            self.queue_panel.add_to_transfer_queue(direction, local_file, remote_file, size, status)
     
     def move_to_completed(self, row):
-        """Move transfer from active to completed queue"""
-        if not hasattr(self, 'active_queue_table') or not hasattr(self, 'completed_queue_table'):
-            return
-
-        if row < 0 or row >= self.active_queue_table.rowCount():
-            return
-
-        direction = self.active_queue_table.item(row, 0).text()
-        local_file = self.active_queue_table.item(row, 1).text()
-        remote_file = self.active_queue_table.item(row, 2).text()
-        size = self.active_queue_table.item(row, 3).text()
-        status = self.active_queue_table.item(row, 4).text()
-
-        completed_row = self.completed_queue_table.rowCount()
-        self.completed_queue_table.insertRow(completed_row)
-        self.completed_queue_table.setItem(completed_row, 0, QTableWidgetItem(direction))
-        self.completed_queue_table.setItem(completed_row, 1, QTableWidgetItem(local_file))
-        self.completed_queue_table.setItem(completed_row, 2, QTableWidgetItem(remote_file))
-        self.completed_queue_table.setItem(completed_row, 3, QTableWidgetItem(size))
-        self.completed_queue_table.setItem(completed_row, 4, QTableWidgetItem(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
-        self.active_queue_table.removeRow(row)
-
-        # Process next transfer if available
-        if hasattr(self, 'auto_process_queue') and self.auto_process_queue:
-            self.process_next_transfer()
+        """Move transfer from active to completed queue (delegates to queue_panel)"""
+        if hasattr(self, 'queue_panel'):
+            self.queue_panel.move_to_completed(row)
 
     def process_next_transfer(self):
         """Process the next transfer in queue if slots available"""
@@ -2387,13 +1816,12 @@ class FTPClientGUI(QMainWindow):
 
     def clear_queue(self):
         """Clear the transfer queue"""
-        if hasattr(self, 'active_queue_table'):
-            # Cancel all active transfers first
-            self.cancel_all_transfers()
-            # Clear the queue table
-            self.active_queue_table.setRowCount(0)
+        # Cancel all active transfers first
+        self.cancel_all_transfers()
 
-        if hasattr(self, 'completed_queue_table'):
+        # Clear the active queue
+        if hasattr(self, 'queue_panel'):
+            # Clear active queue (already done by cancel_all_transfers)
             # Optionally clear completed transfers too
             reply = QMessageBox.question(
                 self, "Clear Queue",
@@ -2401,7 +1829,7 @@ class FTPClientGUI(QMainWindow):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
-                self.completed_queue_table.setRowCount(0)
+                self.queue_panel.clear_completed_queue()
 
         self.log("Transfer queue cleared")
     
@@ -2415,6 +1843,20 @@ class FTPClientGUI(QMainWindow):
             path, parent_widget=self,
             status_callback=lambda msg: self.statusBar().showMessage(msg),
             refresh_callback=self.load_local_files
+        )
+    
+    def create_remote_folder(self):
+        """Create a new remote folder"""
+        tab = self.get_current_tab()
+        if not tab or not tab.manager:
+            QMessageBox.warning(self, "Not Connected", "Please connect to a server first")
+            return
+        
+        create_remote_folder(
+            tab.manager, tab.current_remote_path, parent_widget=self,
+            log_callback=self.log,
+            status_callback=lambda msg: self.statusBar().showMessage(msg),
+            refresh_callback=self.load_remote_files
         )
     
     def rename_remote_file(self, file):
@@ -2432,7 +1874,7 @@ class FTPClientGUI(QMainWindow):
     
     def _show_local_context_menu(self, position):
         """Show enhanced local context menu"""
-        selected_items = self.local_table.selectedItems()
+        selected_items = self.local_panel.local_table.selectedItems()
         self.context_menu_manager.create_local_context_menu(self.local_table, position, selected_items)
 
     def _show_remote_context_menu(self, position):
@@ -2457,11 +1899,11 @@ class FTPClientGUI(QMainWindow):
     def upload_selected_local(self):
         """Upload selected local files"""
         selected_rows = set()
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         for row in selected_rows:
-            item = self.local_table.item(row, 0)
+            item = self.local_panel.local_table.item(row, 0)
             if item:
                 path_str = item.data(Qt.ItemDataRole.UserRole)
                 if path_str:
@@ -2485,11 +1927,11 @@ class FTPClientGUI(QMainWindow):
     def open_selected_local_file(self):
         """Open selected local file"""
         selected_rows = set()
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         for row in selected_rows:
-            item = self.local_table.item(row, 0)
+            item = self.local_panel.local_table.item(row, 0)
             if item:
                 path_str = item.data(Qt.ItemDataRole.UserRole)
                 if path_str:
@@ -2518,7 +1960,7 @@ class FTPClientGUI(QMainWindow):
     def delete_selected_local(self):
         """Delete selected local files/folders"""
         selected_rows = set()
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         if not selected_rows:
@@ -2536,12 +1978,12 @@ class FTPClientGUI(QMainWindow):
 
         if reply == QMessageBox.StandardButton.Yes:
             for row in sorted(selected_rows, reverse=True):  # Delete from bottom up
-                item = self.local_table.item(row, 0)
+                item = self.local_panel.local_table.item(row, 0)
                 if item:
                     path_str = item.data(Qt.ItemDataRole.UserRole)
                     if path_str:
                         self.delete_local_file(Path(path_str))
-                        self.local_table.removeRow(row)
+                        self.local_panel.local_table.removeRow(row)
 
     def delete_selected_remote(self):
         """Delete selected remote files/folders"""
@@ -2578,7 +2020,7 @@ class FTPClientGUI(QMainWindow):
     def rename_selected_local(self):
         """Rename selected local file/folder"""
         selected_rows = set()
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         if len(selected_rows) != 1:
@@ -2586,7 +2028,7 @@ class FTPClientGUI(QMainWindow):
             return
 
         row = list(selected_rows)[0]
-        item = self.local_table.item(row, 0)
+        item = self.local_panel.local_table.item(row, 0)
         if item:
             old_path_str = item.data(Qt.ItemDataRole.UserRole)
             if old_path_str:
@@ -2602,7 +2044,7 @@ class FTPClientGUI(QMainWindow):
                         item.setText(new_name)
                         item.setData(Qt.ItemDataRole.UserRole, str(new_path))
                         # Update other columns if needed
-                        self.local_table.item(row, 2).setText(new_path.suffix or ("<Directory>" if new_path.is_dir() else "File"))
+                        self.local_panel.local_table.item(row, 2).setText(new_path.suffix or ("<Directory>" if new_path.is_dir() else "File"))
                     except Exception as e:
                         QMessageBox.critical(self, "Rename Error", f"Failed to rename: {e}")
 
@@ -2646,20 +2088,32 @@ class FTPClientGUI(QMainWindow):
         """Create new remote folder"""
         tab = self.get_current_tab()
         if not tab:
+            QMessageBox.warning(self, "No Connection", "Please connect to a server first.")
             return
 
-        folder_name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
-        if ok and folder_name:
-            self.create_remote_folder_at(tab.current_remote_path, folder_name)
+        if not tab.manager:
+            QMessageBox.warning(self, "No Connection", "Please connect to a server first.")
+            return
+
+        if hasattr(tab.manager, 'is_connected') and not tab.manager.is_connected():
+            QMessageBox.warning(self, "Connection Lost", "Connection to server is lost. Please reconnect.")
+            return
+
+        create_remote_folder(
+            tab.manager, tab.current_remote_path, parent_widget=self,
+            log_callback=self.log,
+            status_callback=lambda msg: self.statusBar().showMessage(msg),
+            refresh_callback=self.load_remote_files
+        )
 
     def enter_selected_local_directory(self):
         """Enter selected local directory"""
         selected_rows = set()
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             selected_rows.add(item.row())
 
         for row in selected_rows:
-            item = self.local_table.item(row, 0)
+            item = self.local_panel.local_table.item(row, 0)
             if item:
                 path_str = item.data(Qt.ItemDataRole.UserRole)
                 if path_str:
@@ -2689,10 +2143,10 @@ class FTPClientGUI(QMainWindow):
     def _on_local_selection_changed(self):
         """Handle local table selection changes"""
         selected_items = []
-        for item in self.local_table.selectedItems():
+        for item in self.local_panel.local_table.selectedItems():
             if item.column() == 0:  # Only count once per row
                 row = item.row()
-                file_item = self.local_table.item(row, 0)
+                file_item = self.local_panel.local_table.item(row, 0)
                 if file_item:
                     path_str = file_item.data(Qt.ItemDataRole.UserRole)
                     if path_str:
@@ -2722,7 +2176,7 @@ class FTPClientGUI(QMainWindow):
             return
 
         # Get the original path
-        original_item = self.local_table.item(row, 0)
+        original_item = self.local_panel.local_table.item(row, 0)
         if not original_item:
             return
 
@@ -2748,13 +2202,13 @@ class FTPClientGUI(QMainWindow):
             if new_path.is_file():
                 # Update file size
                 size_str = self.format_size(new_path.stat().st_size)
-                size_item = self.local_table.item(row, 1)
+                size_item = self.local_panel.local_table.item(row, 1)
                 if size_item:
                     size_item.setText(size_str)
                     size_item.setData(Qt.ItemDataRole.UserRole, new_path.stat().st_size)
 
                 # Update file type
-                type_item = self.local_table.item(row, 2)
+                type_item = self.local_panel.local_table.item(row, 2)
                 if type_item:
                     type_item.setText(new_path.suffix or "File")
 

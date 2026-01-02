@@ -2,11 +2,13 @@
 Connection tab widget for multiple server connections
 """
 
+import os
+import traceback
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
-    QLineEdit, QPushButton, QTableWidget, QTreeWidget, QTreeWidgetItem,
-    QSplitter, QHeaderView
+    QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
+    QSplitter, QHeaderView, QMenu
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap
@@ -18,8 +20,9 @@ from .context_menus import ContextMenuManager
 class ConnectionTab(QWidget):
     """Tab widget for a single FTP/SFTP connection"""
     
-    def __init__(self, parent=None, config: ConnectionConfig = None):
-        super().__init__(parent)
+    def __init__(self, main_window=None, config: ConnectionConfig = None):
+        super().__init__(main_window if main_window else None)
+        self.main_window = main_window
         self.config = config
         self.manager = None
         self.current_remote_path = "."
@@ -106,7 +109,7 @@ class ConnectionTab(QWidget):
         remote_new_folder_btn.setMinimumHeight(34)
         remote_new_folder_btn.setToolTip("Create new folder")
         remote_new_folder_btn.setProperty("class", "secondary")
-        remote_new_folder_btn.clicked.connect(lambda: self.parent().create_remote_folder())
+        remote_new_folder_btn.clicked.connect(lambda: self.main_window.create_remote_folder())
         remote_path_layout.addWidget(remote_new_folder_btn)
 
         remote_layout.addLayout(remote_path_layout)
@@ -305,19 +308,34 @@ class ConnectionTab(QWidget):
     # Helper methods (stubs - need to be implemented)
     def load_remote_files(self):
         """Load remote files for current path"""
-        print(f"TAB DEBUG: load_remote_files called, manager: {self.manager}, connected: {self.is_connected() if self.manager else False}")
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"TAB DEBUG: load_remote_files called, manager: {self.manager}, connected: {self.is_connected() if self.manager else False}")
+        logger.info(f"TAB DEBUG: Current remote path: {self.current_remote_path}")
+        logger.info(f"TAB DEBUG: Remote table exists: {hasattr(self, 'remote_table')}")
+        
         if not self.manager or not self.is_connected():
-            print("TAB DEBUG: Not connected, clearing table")
-            self.remote_table.setRowCount(0)
+            logger.warning("TAB DEBUG: Not connected, clearing table")
+            if hasattr(self, 'remote_table'):
+                self.remote_table.setRowCount(0)
+            return
+
+        if not hasattr(self, 'remote_table'):
+            logger.error("TAB ERROR: remote_table does not exist!")
             return
 
         try:
             self.remote_table.setSortingEnabled(False)  # Disable sorting during load
             self.remote_table.setRowCount(0)
 
-            print(f"TAB DEBUG: Calling manager.list_files with path: {self.current_remote_path}")
+            logger.info(f"TAB DEBUG: Calling manager.list_files with path: {self.current_remote_path}")
             files = self.manager.list_files(self.current_remote_path)
-            print(f"TAB DEBUG: manager.list_files returned {len(files) if files else 0} files")
+            logger.info(f"TAB DEBUG: manager.list_files returned {len(files) if files else 0} files")
+            
+            if files:
+                for i, f in enumerate(files[:5]):  # Log first 5 files
+                    logger.info(f"TAB DEBUG: File {i}: name={f.name}, size={f.size}, is_dir={f.is_dir}, modified={f.modified}")
 
             if not files:
                 print("TAB DEBUG: No files returned, showing empty message")
@@ -356,46 +374,47 @@ class ConnectionTab(QWidget):
                 visible_files.append(file)
 
             # Populate table with visible files
-            print(f"TAB DEBUG: Populating table with {len(visible_files)} visible files")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"TAB DEBUG: Populating table with {len(visible_files)} visible files")
             for row, file in enumerate(visible_files):
-                print(f"TAB DEBUG: Adding file {row}: {file.name}")
+                logger.info(f"TAB DEBUG: Adding file {row}: {file.name} (size={file.size}, is_dir={file.is_dir})")
                 self.remote_table.insertRow(row)
 
                 # Use proper icons from theme manager
                 try:
-                    from ..icon_themes import get_icon_theme_manager
-                    icon_theme_manager = get_icon_theme_manager()
-                    icon = icon_theme_manager.get_file_icon(file.name, is_dir=file.is_dir)
-                    name_item = QTableWidgetItem(icon, file.name)
-                    print(f"TAB DEBUG: Created item with icon for {file.name}")
+                    if self.main_window and hasattr(self.main_window, 'icon_theme_manager'):
+                        icon_theme_manager = self.main_window.icon_theme_manager
+                        icon = icon_theme_manager.get_file_icon(file.name, is_dir=file.is_dir)
+                        name_item = QTableWidgetItem(icon, file.name)
+                        logger.debug(f"TAB DEBUG: Created item with icon for {file.name}")
+                    else:
+                        # Fallback to text-only if icon_theme_manager not available
+                        name_item = QTableWidgetItem(file.name)
+                        logger.warning(f"TAB DEBUG: icon_theme_manager not available, using text-only")
                 except Exception as e:
-                    print(f"TAB DEBUG: Icon loading failed for {file.name}: {e}")
+                    logger.warning(f"TAB DEBUG: Icon loading failed for {file.name}: {e}")
                     # Fallback to text-only if icon loading fails
                     name_item = QTableWidgetItem(file.name)
 
-                # Ensure text is visible
-                name_item.setForeground(Qt.GlobalColor.black)
+                # Text color will be handled by theme, don't force black
                 self.remote_table.setItem(row, 0, name_item)
 
                 if file.is_dir:
                     size_item = QTableWidgetItem("<DIR>")
                     size_item.setData(Qt.ItemDataRole.UserRole, 0)
-                    size_item.setForeground(Qt.GlobalColor.black)
                 else:
                     size_str = self.parent().format_size(file.size) if hasattr(self.parent(), 'format_size') else str(file.size)
                     from .table_managers import NumericTableWidgetItem
                     size_item = NumericTableWidgetItem(size_str)
                     size_item.setData(Qt.ItemDataRole.UserRole, file.size)
-                    size_item.setForeground(Qt.GlobalColor.black)
 
                 self.remote_table.setItem(row, 1, size_item)
 
                 type_item = QTableWidgetItem("Directory" if file.is_dir else "File")
-                type_item.setForeground(Qt.GlobalColor.black)
                 self.remote_table.setItem(row, 2, type_item)
 
                 date_item = QTableWidgetItem(file.modified or "")
-                date_item.setForeground(Qt.GlobalColor.black)
                 self.remote_table.setItem(row, 3, date_item)
 
                 self.remote_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, file)
@@ -404,8 +423,21 @@ class ConnectionTab(QWidget):
             self.remote_table.resizeColumnsToContents()
 
         except Exception as e:
-            print(f"Error loading remote files: {e}")
-            self.remote_table.setSortingEnabled(True)
+            import logging
+            logger = logging.getLogger(__name__)
+            error_msg = f"Error loading remote files: {e}"
+            logger.error(f"TAB ERROR: {error_msg}")
+            logger.error(f"TAB ERROR TRACEBACK:\n{traceback.format_exc()}")
+            # Show error in table
+            if hasattr(self, 'remote_table'):
+                self.remote_table.setRowCount(1)
+                error_item = QTableWidgetItem(f"Error: {str(e)}")
+                error_item.setForeground(Qt.GlobalColor.red)
+                self.remote_table.setItem(0, 0, error_item)
+                for col in range(1, 4):
+                    empty_item = QTableWidgetItem("")
+                    self.remote_table.setItem(0, col, empty_item)
+                self.remote_table.setSortingEnabled(True)
 
     def navigate_to_remote_path(self, path):
         """Navigate to remote path"""

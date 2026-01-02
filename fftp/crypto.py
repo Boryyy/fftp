@@ -70,18 +70,22 @@ class EncryptionManager:
     def verify_master_password(self, password: str) -> bool:
         """Verify master password"""
         if not self.master_hash_file.exists():
+            print(f"CRYPTO DEBUG: Master hash file does not exist: {self.master_hash_file}")
             return False
-        
+
         try:
             digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
             digest.update(password.encode())
             provided_hash = digest.finalize()
-            
+
             with open(self.master_hash_file, 'rb') as f:
                 stored_hash = f.read()
-            
-            return provided_hash == stored_hash
-        except Exception:
+
+            result = provided_hash == stored_hash
+            print(f"CRYPTO DEBUG: Password verification - provided hash length: {len(provided_hash)}, stored hash length: {len(stored_hash)}, match: {result}")
+            return result
+        except Exception as e:
+            print(f"CRYPTO DEBUG: Password verification error: {e}")
             return False
     
     def has_master_password(self) -> bool:

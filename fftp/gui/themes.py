@@ -396,6 +396,26 @@ QCheckBox::indicator:checked {
 QCheckBox::indicator:hover {
     border-color: #95a5a6;
 }
+
+/* Secondary buttons styling */
+QPushButton[class="secondary"] {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    font-weight: 500;
+    padding: 6px 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+QPushButton[class="secondary"]:hover {
+    background-color: #d5dbdb;
+    border-color: #95a5a6;
+}
+
+QPushButton[class="secondary"]:pressed {
+    background-color: #bdc3c7;
+}
 """
 
 PREMIUM_DARK_THEME = """
@@ -772,5 +792,25 @@ QCheckBox::indicator:checked {
 
 QCheckBox::indicator:hover {
     border-color: #666666;
+}
+
+/* Secondary buttons styling for dark theme */
+QPushButton[class="secondary"] {
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+    font-weight: 500;
+    padding: 6px 12px;
+    border: 1px solid #666666;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+QPushButton[class="secondary"]:hover {
+    background-color: #4d4d4d;
+    border-color: #777777;
+}
+
+QPushButton[class="secondary"]:pressed {
+    background-color: #555555;
 }
 """

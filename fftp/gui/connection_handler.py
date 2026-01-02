@@ -101,8 +101,15 @@ def handle_connection_finished(worker, success, msg, config, manager_ref,
         if log_callback:
             log_callback(f"Connection established, loading remote files from: {current_remote_path_ref[0]}")
         if refresh_callback:
+            if log_callback:
+                log_callback("CONNECTION DEBUG: Calling refresh_callback to load remote files")
             try:
                 refresh_callback()
+                if log_callback:
+                    log_callback("CONNECTION DEBUG: refresh_callback completed successfully")
+                # Add a fallback refresh after a short delay to ensure files are loaded
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(500, lambda: refresh_callback() if refresh_callback else None)
             except Exception as e:
                 error_msg = f"Connected but failed to load files: {str(e)}"
                 if log_callback:
