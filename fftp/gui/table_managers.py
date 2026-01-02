@@ -50,7 +50,7 @@ def load_local_files_to_table(table: QTableWidget, path_edit, current_path: str,
             if item.is_dir():
                 row = table.rowCount()
                 table.insertRow(row)
-                table.setItem(row, 0, QTableWidgetItem(f"📁 {item.name}"))
+                table.setItem(row, 0, QTableWidgetItem(f"[DIR] {item.name}"))
                 size_item = QTableWidgetItem("")
                 size_item.setData(Qt.ItemDataRole.UserRole, 0)
                 table.setItem(row, 1, size_item)
@@ -66,7 +66,7 @@ def load_local_files_to_table(table: QTableWidget, path_edit, current_path: str,
             if item.is_file():
                 row = table.rowCount()
                 table.insertRow(row)
-                table.setItem(row, 0, QTableWidgetItem(f"📄 {item.name}"))
+                table.setItem(row, 0, QTableWidgetItem(f"[FILE] {item.name}"))
                 size = item.stat().st_size
                 size_str = format_size(size)
                 size_item = NumericTableWidgetItem(size_str)
@@ -174,7 +174,7 @@ def load_remote_files_to_table(table: QTableWidget, path_edit, manager, current_
             row = table.rowCount()
             table.insertRow(row)
             
-            icon = "📁" if file.is_dir else "📄"
+            icon = "[DIR]" if file.is_dir else "[FILE]"
             table.setItem(row, 0, QTableWidgetItem(f"{icon} {file.name}"))
             if file.is_dir:
                 size_item = QTableWidgetItem("<DIR>")

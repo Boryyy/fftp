@@ -190,15 +190,13 @@ class FTPClientGUI(QMainWindow):
         host_label = QLabel("Host:")
         host_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
         connect_layout.addWidget(host_label)
-        self.quick_connect_combo = QComboBox()
-        self.quick_connect_combo.setEditable(True)
-        self.quick_connect_combo.setMinimumWidth(200)
-        self.quick_connect_combo.setMinimumHeight(34)
-        self.quick_connect_combo.lineEdit().setPlaceholderText("Enter hostname")
-        self.quick_connect_combo.lineEdit().returnPressed.connect(self.quick_connect)
-        # Ensure consistent styling and text visibility
-        self.quick_connect_combo.setStyleSheet("""
-            QComboBox {
+        self.quick_host = QLineEdit()
+        self.quick_host.setMinimumWidth(200)
+        self.quick_host.setMinimumHeight(34)
+        self.quick_host.setPlaceholderText("Enter hostname")
+        self.quick_host.returnPressed.connect(self.quick_connect)
+        self.quick_host.setStyleSheet("""
+            QLineEdit {
                 border: 2px solid #bdc3c7;
                 border-radius: 4px;
                 padding: 2px 8px;
@@ -206,28 +204,13 @@ class FTPClientGUI(QMainWindow):
                 color: #2c3e50;
                 font-size: 12px;
             }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 4px solid #2c3e50;
-                margin-right: 8px;
-            }
-            QComboBox QAbstractItemView {
-                border: 1px solid #bdc3c7;
-                selection-background-color: #3498db;
-                selection-color: #ffffff;
-                background-color: #ffffff;
-                color: #2c3e50;
+            QLineEdit:focus {
+                border-color: #3498db;
             }
         """)
-        connect_layout.addWidget(self.quick_connect_combo)
+        connect_layout.addWidget(self.quick_host)
 
-        user_label = QLabel("User:")
+        user_label = QLabel("Username:")
         user_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
         connect_layout.addWidget(user_label)
         self.quick_user = QLineEdit()
@@ -236,7 +219,7 @@ class FTPClientGUI(QMainWindow):
         self.quick_user.setMinimumHeight(34)
         connect_layout.addWidget(self.quick_user)
 
-        pass_label = QLabel("Pass:")
+        pass_label = QLabel("Password:")
         pass_label.setStyleSheet("font-weight: 600; color: #2c3e50; font-size: 12px; padding: 0px 4px;")
         connect_layout.addWidget(pass_label)
         self.quick_pass = QLineEdit()
@@ -470,7 +453,7 @@ class FTPClientGUI(QMainWindow):
         local_header.addWidget(self.local_path_edit)
 
         # Control buttons
-        self.local_up_btn = QPushButton("⬆️")
+        self.local_up_btn = QPushButton("Up")
         self.local_up_btn.setToolTip("Go to parent directory")
         self.local_up_btn.setMaximumWidth(32)
         self.local_up_btn.clicked.connect(self.local_up)
@@ -491,7 +474,7 @@ class FTPClientGUI(QMainWindow):
         """)
         local_header.addWidget(self.local_up_btn)
 
-        self.local_refresh_btn = QPushButton("🔄")
+        self.local_refresh_btn = QPushButton("Refresh")
         self.local_refresh_btn.setToolTip("Refresh local files")
         self.local_refresh_btn.setMaximumWidth(32)
         self.local_refresh_btn.clicked.connect(self.load_local_files)
@@ -512,7 +495,7 @@ class FTPClientGUI(QMainWindow):
         """)
         local_header.addWidget(self.local_refresh_btn)
 
-        self.local_new_folder_btn = QPushButton("📁")
+        self.local_new_folder_btn = QPushButton("New Folder")
         self.local_new_folder_btn.setToolTip("Create new folder")
         self.local_new_folder_btn.setMaximumWidth(32)
         self.local_new_folder_btn.clicked.connect(self.create_local_folder)
@@ -666,23 +649,23 @@ class FTPClientGUI(QMainWindow):
         quick_form = QWidget()
         quick_form_layout = QFormLayout(quick_form)
 
-        self.quick_host = QLineEdit()
-        self.quick_host.setPlaceholderText("hostname or IP address")
-        quick_form_layout.addRow("Host:", self.quick_host)
+        welcome_host = QLineEdit()
+        welcome_host.setPlaceholderText("hostname or IP address")
+        quick_form_layout.addRow("Host:", welcome_host)
 
-        self.quick_port = QSpinBox()
-        self.quick_port.setRange(1, 65535)
-        self.quick_port.setValue(21)
-        quick_form_layout.addRow("Port:", self.quick_port)
+        welcome_port = QSpinBox()
+        welcome_port.setRange(1, 65535)
+        welcome_port.setValue(21)
+        quick_form_layout.addRow("Port:", welcome_port)
 
-        self.quick_user = QLineEdit()
-        self.quick_user.setPlaceholderText("username")
-        quick_form_layout.addRow("User:", self.quick_user)
+        welcome_user = QLineEdit()
+        welcome_user.setPlaceholderText("username")
+        quick_form_layout.addRow("User:", welcome_user)
 
-        self.quick_pass = QLineEdit()
-        self.quick_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.quick_pass.setPlaceholderText("password")
-        quick_form_layout.addRow("Password:", self.quick_pass)
+        welcome_pass = QLineEdit()
+        welcome_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        welcome_pass.setPlaceholderText("password")
+        quick_form_layout.addRow("Password:", welcome_pass)
 
         connect_btn = QPushButton("Quick Connect")
         connect_btn.setStyleSheet("""
@@ -699,7 +682,7 @@ class FTPClientGUI(QMainWindow):
                 background-color: #2980b9;
             }
         """)
-        connect_btn.clicked.connect(self.quick_connect)
+        connect_btn.clicked.connect(lambda: QMessageBox.information(self, "Welcome", "Use the main Fftp interface to connect to servers."))
 
         quick_form_layout.addRow(connect_btn)
         welcome_layout.addWidget(quick_form)
@@ -724,45 +707,7 @@ class FTPClientGUI(QMainWindow):
 
         queue_header.addStretch()
 
-        # Queue control buttons
-        process_queue_btn = QPushButton("Process Queue")
-        process_queue_btn.setMaximumWidth(100)
-        process_queue_btn.setMaximumHeight(24)
-        process_queue_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: #ffffff;
-                font-weight: 500;
-                font-size: 10px;
-                padding: 4px 8px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
-        process_queue_btn.clicked.connect(self.process_queue_manually)
-        queue_header.addWidget(process_queue_btn)
-
-        clear_queue_btn = QPushButton("Clear")
-        clear_queue_btn.setMaximumWidth(60)
-        clear_queue_btn.setMaximumHeight(24)
-        clear_queue_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                font-weight: 500;
-                font-size: 10px;
-                padding: 4px 8px;
-                border: 1px solid #bdc3c7;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-            }
-        """)
-        clear_queue_btn.clicked.connect(self.clear_queue)
-        queue_header.addWidget(clear_queue_btn)
+        # Queue control buttons removed as requested
 
         queue_layout.addLayout(queue_header)
 
@@ -1540,15 +1485,23 @@ class FTPClientGUI(QMainWindow):
         connections = []
         password = None
         
+        print(f"SITE MANAGER DEBUG: Loading connections...")
+        print(f"SITE MANAGER DEBUG: Has master password: {self.encryption_manager.has_master_password()}")
+
         if self.encryption_manager.has_master_password():
             password = self.get_master_password()
-            if password:
-                connections = self.encryption_manager.decrypt_connections(password)
+            if not password:
+                print(f"SITE MANAGER DEBUG: Password verification failed, not opening site manager")
+                return  # Don't open site manager if password is wrong
+
+            connections = self.encryption_manager.decrypt_connections(password)
+            print(f"SITE MANAGER DEBUG: Successfully loaded {len(connections)} connections")
         else:
             connections = []
-        
+            print(f"SITE MANAGER DEBUG: No master password set, loading empty connections")
+
         dialog = ConnectionManagerDialog(
-            self, 
+            self,
             connections=connections,
             master_password=password,
             encryption_manager=self.encryption_manager
@@ -1561,18 +1514,31 @@ class FTPClientGUI(QMainWindow):
     
     def quick_connect(self):
         """Quick connect from toolbar"""
-        host = self.quick_connect_combo.currentText().strip()
+        # Debug: Check if fields exist
+        if not hasattr(self, 'quick_host'):
+            QMessageBox.warning(self, "Error", "Host field not initialized")
+            return
+
+        host = self.quick_host.text().strip()
         user = self.quick_user.text().strip()
         password = self.quick_pass.text().strip()
         port = self.quick_port.value()
+
+        self.log(f"DEBUG: Host field object exists: {hasattr(self, 'quick_host')}")
+        self.log(f"DEBUG: Host value: '{host}' (length: {len(host)})")
 
         if not host:
             QMessageBox.warning(self, "Error", "Please enter a host")
             return
 
-        # Debug logging to help troubleshoot
-        # Enhanced debugging
+        # Enhanced debugging to help troubleshoot credential issues
         self.log(f"Quick Connect: Host='{host}', User='{user}' (len={len(user)}), Port={port}, HasPassword={bool(password)}")
+        if not user or not password:
+            self.log("WARNING: Username or password field appears to be empty. Make sure to enter credentials in the User and Pass fields.")
+            if not user:
+                self.log("Username field is empty")
+            if not password:
+                self.log("Password field is empty")
 
         if port == 22:
             protocol = "sftp"
@@ -1915,7 +1881,7 @@ class FTPClientGUI(QMainWindow):
         tab = self.get_current_tab()
         if not tab:
             return
-        
+
         if tab.manager and hasattr(tab.manager, 'is_connected'):
             if not tab.manager.is_connected():
                 self.log("Connection lost, attempting to reconnect...", "warning")
@@ -1923,15 +1889,9 @@ class FTPClientGUI(QMainWindow):
                 if tab.config:
                     self.reconnect_tab(tab)
                 return
-        
-        tab.current_remote_path = load_remote_files_to_table(
-            tab.remote_table,
-            tab.remote_path_edit,
-            tab.manager,
-            tab.current_remote_path,
-            self.log,
-            lambda msg: self.statusBar().showMessage(msg)
-        )
+
+        # Use the tab's load_remote_files method which includes filtering and comparison
+        tab.load_remote_files()
         self.current_remote_path = tab.current_remote_path
     
     def reconnect_tab(self, tab):
@@ -2639,7 +2599,7 @@ class FTPClientGUI(QMainWindow):
                     try:
                         old_path.rename(new_path)
                         # Update table
-                        item.setText(f"📁 {new_name}" if old_path.is_dir() else f"📄 {new_name}")
+                        item.setText(new_name)
                         item.setData(Qt.ItemDataRole.UserRole, str(new_path))
                         # Update other columns if needed
                         self.local_table.item(row, 2).setText(new_path.suffix or ("<Directory>" if new_path.is_dir() else "File"))

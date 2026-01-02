@@ -270,11 +270,11 @@ class SettingsDialog(QDialog):
 
         self.max_concurrent_transfers_spin = QSpinBox()
         self.max_concurrent_transfers_spin.setRange(1, 10)
-        self.max_concurrent_transfers_spin.setValue(self.settings.get('max_concurrent_transfers', 2))
+        self.max_concurrent_transfers_spin.setValue(self.settings.get('max_concurrent_transfers', 10))
         transfer_form.addRow("Max Concurrent Transfers:", self.max_concurrent_transfers_spin)
 
         self.speed_limit_check = QCheckBox("Enable Speed Limit")
-        self.speed_limit_check.setChecked(self.settings.get('speed_limit_enabled', False))
+        self.speed_limit_check.setChecked(self.settings.get('speed_limit_enabled', False))  # Default: unlimited
         transfer_form.addRow(self.speed_limit_check)
 
         self.speed_limit_spin = QSpinBox()

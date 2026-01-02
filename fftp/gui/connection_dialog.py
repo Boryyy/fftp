@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QSplitter, QWidget,
     QLabel, QListWidget, QPushButton, QLineEdit, QSpinBox,
     QComboBox, QCheckBox, QFormLayout, QMessageBox, QTreeWidget,
-    QTreeWidgetItem, QTabWidget, QGroupBox
+    QTreeWidgetItem, QTabWidget, QGroupBox, QInputDialog
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
@@ -87,7 +87,7 @@ class ConnectionManagerDialog(QDialog):
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
 
-        # Settings tabs like FileZilla
+        # Settings 
         self.settings_tabs = QTabWidget()
 
         # General tab
@@ -110,7 +110,7 @@ class ConnectionManagerDialog(QDialog):
         general_layout.addRow("Host:", self.host_input)
         general_layout.addRow("Port:", self.port_input)
         general_layout.addRow("Protocol:", self.protocol_combo)
-        general_layout.addRow("User:", self.user_input)
+        general_layout.addRow("Username:", self.user_input)
         general_layout.addRow("Password:", self.pass_input)
 
         self.settings_tabs.addTab(general_tab, "General")
@@ -193,18 +193,23 @@ class ConnectionManagerDialog(QDialog):
     
     def save_current_connection(self):
         """Save current connection settings"""
-        if not all([self.name_input.text(), self.host_input.text(), 
+        print(f"DIALOG DEBUG: save_current_connection called")
+        if not all([self.name_input.text(), self.host_input.text(),
                    self.user_input.text(), self.pass_input.text()]):
             QMessageBox.warning(self, "Error", "Please fill in all required fields")
             return
-        
+
         config = self.get_config()
         if config:
+            print(f"DIALOG DEBUG: Saving connection: {config.name}")
             current = self.site_tree.currentItem()
+            print(f"DIALOG DEBUG: Current item: {current}, has data: {current.data(0, Qt.ItemDataRole.UserRole) if current else None}")
+
             if current and current.data(0, Qt.ItemDataRole.UserRole):
+                print("DIALOG DEBUG: Updating existing site")
                 # Update existing site
                 current.setText(0, config.name)
-                current.setData(0, Qt.ItemDataRole.UserRole, {
+                new_conn_data = {
                     'name': config.name,
                     'host': config.host,
                     'port': config.port,
@@ -214,25 +219,33 @@ class ConnectionManagerDialog(QDialog):
                     'use_passive': config.use_passive,
                     'use_ssl': getattr(config, 'use_ssl', False),
                     'ssl_implicit': getattr(config, 'ssl_implicit', False)
-                })
-                # Update in connections list
+                }
+                current.setData(0, Qt.ItemDataRole.UserRole, new_conn_data)
+
+                # Update in connections list - find by matching key fields
+                updated = False
                 for i, conn in enumerate(self.connections):
-                    if conn == self.selected_config:
-                        self.connections[i] = current.data(0, Qt.ItemDataRole.UserRole)
+                    if (isinstance(conn, dict) and
+                        conn.get('name') == getattr(self.selected_config, 'name', None)):
+                        self.connections[i] = new_conn_data
+                        updated = True
+                        print(f"DIALOG DEBUG: Updated connection at index {i}")
                         break
+                if not updated:
+                    print("DIALOG DEBUG: Could not find connection to update, appending new one")
+                    self.connections.append(new_conn_data)
             else:
+                print("DIALOG DEBUG: Adding new site")
                 # Add new site
                 self.add_connection_to_tree(config)
 
+            print(f"DIALOG DEBUG: Connections list now has {len(self.connections)} items")
             QMessageBox.information(self, "Success", "Connection saved successfully")
             self.save_connections()
 
     def add_connection_to_tree(self, config):
         """Add a new connection to the tree"""
-        site_item = QTreeWidgetItem(self.sites_root)
-        site_item.setText(0, config.name)
-        site_item.setIcon(0, QIcon("server.png"))
-        site_item.setData(0, Qt.ItemDataRole.UserRole, {
+        conn_dict = {
             'name': config.name,
             'host': config.host,
             'port': config.port,
@@ -242,7 +255,15 @@ class ConnectionManagerDialog(QDialog):
             'use_passive': config.use_passive,
             'use_ssl': getattr(config, 'use_ssl', False),
             'ssl_implicit': getattr(config, 'ssl_implicit', False)
-        })
+        }
+
+        # Add to connections list
+        self.connections.append(conn_dict)
+
+        site_item = QTreeWidgetItem(self.sites_root)
+        site_item.setText(0, config.name)
+        site_item.setIcon(0, QIcon("server.png"))
+        site_item.setData(0, Qt.ItemDataRole.UserRole, conn_dict)
         self.sites_root.setExpanded(True)
         self.site_tree.setCurrentItem(site_item)
     
@@ -432,10 +453,16 @@ class ConnectionManagerDialog(QDialog):
                         'ssl_implicit': getattr(conn, 'ssl_implicit', False)
                     })
             
+            print(f"SITE MANAGER DEBUG: Attempting to save {len(conn_dicts)} connections")
+            for i, conn in enumerate(conn_dicts):
+                print(f"SITE MANAGER DEBUG: Connection {i+1}: {conn.get('name', 'unnamed')} - {conn.get('host', 'no host')}")
+
             if self.encryption_manager.encrypt_connections(conn_dicts, password):
+                print(f"SITE MANAGER DEBUG: Successfully saved connections")
                 QMessageBox.information(self, "Success", "Connections saved and encrypted successfully")
             else:
-                QMessageBox.warning(self, "Error", "Failed to save connections")
+                print(f"SITE MANAGER DEBUG: Failed to save connections")
+                QMessageBox.critical(self, "Error", "Failed to save connections")
     
     def add_connection(self, config: ConnectionConfig):
         """Add a new connection"""

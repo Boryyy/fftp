@@ -108,21 +108,27 @@ class EncryptionManager:
     def decrypt_connections(self, password: str) -> list:
         """Decrypt and load connections"""
         if not self.connections_file.exists():
+            print(f"CRYPTO DEBUG: Connections file does not exist: {self.connections_file}")
             return []
-        
+
         try:
+            print(f"CRYPTO DEBUG: Attempting to decrypt connections with password (len={len(password)})")
             fernet = self._get_fernet(password)
-            
+
             with open(self.connections_file, 'rb') as f:
                 encrypted_data = f.read()
-            
+            print(f"CRYPTO DEBUG: Read {len(encrypted_data)} bytes of encrypted data")
+
             decrypted_data = fernet.decrypt(encrypted_data)
-            
+            print(f"CRYPTO DEBUG: Successfully decrypted {len(decrypted_data)} bytes")
+
             import json
             connections = json.loads(decrypted_data.decode())
-            
+            print(f"CRYPTO DEBUG: Successfully parsed {len(connections)} connections")
+
             return connections
         except Exception as e:
+            print(f"CRYPTO DEBUG: Decryption failed: {e}")
             return []
     
     def clear_encrypted_data(self):

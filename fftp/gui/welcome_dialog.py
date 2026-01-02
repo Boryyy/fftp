@@ -304,7 +304,7 @@ Fftp offers a comprehensive set of features for professional file management:
 • Encrypted storage of sensitive data
 • Secure FTP/SFTP protocol support
 
-📁 FILE MANAGEMENT
+FILE MANAGEMENT
 • Dual-pane interface for easy file comparison
 • Drag & drop between local and remote systems
 • Advanced search and filtering capabilities
@@ -322,7 +322,7 @@ Fftp offers a comprehensive set of features for professional file management:
 • Bookmarks for quick directory access
 • Extensive settings for personalization
 
-🛠️ ADVANCED FEATURES
+ADVANCED FEATURES
 • Directory comparison and synchronization
 • Transfer queue with priority management
 • Comprehensive logging and error reporting

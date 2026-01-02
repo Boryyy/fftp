@@ -280,6 +280,14 @@ class FTPManager:
                 self.ftp.set_pasv(True)
             
             protocol_name = "FTPS" if (self.config.protocol == "ftps" or self.config.use_ssl) else "FTP"
+
+            # Test the connection with a simple command
+            try:
+                test_dir = self.ftp.pwd()
+                print(f"FTP DEBUG: Connection test successful, current directory: {test_dir}")
+            except Exception as e:
+                print(f"FTP DEBUG: Connection test failed: {e}")
+
             return True, f"{protocol_name} connected"
         except ftplib.error_perm as e:
             error_msg = str(e).strip()
@@ -333,51 +341,77 @@ class FTPManager:
         """List remote directory"""
         try:
             files = []
-            
+            print(f"FTP DEBUG: Listing directory: {path}")
+
             if path == "." or path == "":
                 try:
                     current_dir = self.ftp.pwd()
+                    print(f"FTP DEBUG: Current directory: {current_dir}")
                     if current_dir:
                         path = current_dir
                     else:
                         path = "/"
-                except:
+                except Exception as e:
+                    print(f"FTP DEBUG: Failed to get current dir: {e}")
                     path = "/"
-            
+
+            print(f"FTP DEBUG: Using path: {path}")
+
             try:
                 self.ftp.cwd(path)
-            except:
+                print(f"FTP DEBUG: Changed to directory: {path}")
+            except Exception as e:
+                print(f"FTP DEBUG: Failed to cwd to {path}: {e}")
                 try:
                     self.ftp.cwd("/")
                     path = "/"
-                except:
+                    print(f"FTP DEBUG: Changed to root directory")
+                except Exception as e2:
+                    print(f"FTP DEBUG: Failed to cwd to root: {e2}")
                     pass
-            
-            self.ftp.dir(lambda line: self._parse_ftp_line(line, files, path))
+
+            print(f"FTP DEBUG: Executing DIR command")
+            # Collect raw LIST output for debugging
+            raw_lines = []
+            self.ftp.dir(lambda line: (raw_lines.append(line), self._parse_ftp_line(line, files, path)))
+
+            print(f"FTP DEBUG: Raw LIST output ({len(raw_lines)} lines):")
+            for i, line in enumerate(raw_lines[:10]):  # Show first 10 lines
+                print(f"FTP DEBUG:   {i+1}: {line}")
+            if len(raw_lines) > 10:
+                print(f"FTP DEBUG:   ... and {len(raw_lines)-10} more lines")
+            print(f"FTP DEBUG: Found {len(files)} files")
+
             return sorted(files, key=lambda x: (not x.is_dir, x.name.lower()))
         except Exception as e:
+            print(f"FTP DEBUG: List error: {str(e)}")
             raise Exception(f"List error: {str(e)}")
     
     def _parse_ftp_line(self, line: str, files: list, current_path: str = "."):
         """Parse FTP LIST output"""
         try:
+            print(f"FTP PARSE DEBUG: Processing line: '{line}'")
             parts = line.split()
+            print(f"FTP PARSE DEBUG: Split into {len(parts)} parts")
             if len(parts) >= 9:
                 is_dir = line.startswith('d')
                 name = ' '.join(parts[8:])
+                print(f"FTP PARSE DEBUG: Name: '{name}', is_dir: {is_dir}")
                 if name in ['.', '..']:
+                    print(f"FTP PARSE DEBUG: Skipping special directory '{name}'")
                     return
-                
+
                 try:
                     size = int(parts[4]) if not is_dir else 0
                 except:
                     size = 0
-                
+
                 if current_path == "." or current_path == "/":
                     file_path = name
                 else:
                     file_path = f"{current_path.rstrip('/')}/{name}"
-                
+
+                print(f"FTP PARSE DEBUG: Adding file: {name} (path: {file_path}, dir: {is_dir})")
                 files.append(RemoteFile(
                     name=name,
                     path=file_path,
@@ -385,7 +419,10 @@ class FTPManager:
                     size=size,
                     modified=f"{parts[5]} {parts[6]} {parts[7]}" if len(parts) >= 8 else ""
                 ))
-        except Exception:
+            else:
+                print(f"FTP PARSE DEBUG: Line has only {len(parts)} parts, skipping")
+        except Exception as e:
+            print(f"FTP PARSE DEBUG: Exception parsing line: {e}")
             pass
     
     def download_file(self, remote_path: str, local_path: str):

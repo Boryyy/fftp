@@ -93,51 +93,19 @@ class ConnectionTab(QWidget):
         remote_path_layout.addWidget(remote_up_btn)
 
         # Add refresh and create folder buttons
-        remote_refresh_btn = QPushButton("🔄")
+        remote_refresh_btn = QPushButton("Refresh")
         remote_refresh_btn.setMaximumWidth(44)
         remote_refresh_btn.setMinimumHeight(34)
         remote_refresh_btn.setToolTip("Refresh remote files")
-        remote_refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                font-weight: 600;
-                font-size: 12px;
-                color: #2c3e50;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-                border-color: #95a5a6;
-            }
-            QPushButton:pressed {
-                background-color: #bdc3c7;
-            }
-        """)
+        remote_refresh_btn.setProperty("class", "secondary")
         remote_refresh_btn.clicked.connect(self.load_remote_files)
         remote_path_layout.addWidget(remote_refresh_btn)
 
-        remote_new_folder_btn = QPushButton("📁")
+        remote_new_folder_btn = QPushButton("New Folder")
         remote_new_folder_btn.setMaximumWidth(44)
         remote_new_folder_btn.setMinimumHeight(34)
         remote_new_folder_btn.setToolTip("Create new folder")
-        remote_new_folder_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                font-weight: 600;
-                font-size: 12px;
-                color: #2c3e50;
-            }
-            QPushButton:hover {
-                background-color: #d5dbdb;
-                border-color: #95a5a6;
-            }
-            QPushButton:pressed {
-                background-color: #bdc3c7;
-            }
-        """)
+        remote_new_folder_btn.setProperty("class", "secondary")
         remote_new_folder_btn.clicked.connect(lambda: self.parent().create_remote_folder())
         remote_path_layout.addWidget(remote_new_folder_btn)
 
@@ -193,38 +161,7 @@ class ConnectionTab(QWidget):
         self.remote_table.setAlternatingRowColors(True)
         self.remote_table.setSortingEnabled(True)
         self.remote_table.setSortingEnabled(True)
-        self.remote_table.setStyleSheet("""
-            QTableWidget {
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                font-size: 11px;
-                gridline-color: #ecf0f1;
-                background-color: #ffffff;
-                color: #2c3e50;
-            }
-            QTableWidget::item {
-                padding: 5px 8px;
-                border: none;
-                color: #2c3e50;
-            }
-            QTableWidget::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QTableWidget::item:hover {
-                background-color: #ecf0f1;
-            }
-            QHeaderView::section {
-                background-color: #ecf0f1;
-                padding: 10px 8px;
-                border: none;
-                border-bottom: 2px solid #bdc3c7;
-                border-right: 1px solid #bdc3c7;
-                font-weight: 700;
-                font-size: 11px;
-                color: #2c3e50;
-            }
-        """)
+        # Table styling is handled by the global theme
         self.remote_table.setColumnWidth(0, 200)
         self.remote_table.setColumnWidth(1, 80)
         self.remote_table.setColumnWidth(2, 80)
@@ -368,7 +305,9 @@ class ConnectionTab(QWidget):
     # Helper methods (stubs - need to be implemented)
     def load_remote_files(self):
         """Load remote files for current path"""
+        print(f"TAB DEBUG: load_remote_files called, manager: {self.manager}, connected: {self.is_connected() if self.manager else False}")
         if not self.manager or not self.is_connected():
+            print("TAB DEBUG: Not connected, clearing table")
             self.remote_table.setRowCount(0)
             return
 
@@ -376,11 +315,12 @@ class ConnectionTab(QWidget):
             self.remote_table.setSortingEnabled(False)  # Disable sorting during load
             self.remote_table.setRowCount(0)
 
-            # Collect file data for comparison
-            remote_files_data = []
-
+            print(f"TAB DEBUG: Calling manager.list_files with path: {self.current_remote_path}")
             files = self.manager.list_files(self.current_remote_path)
+            print(f"TAB DEBUG: manager.list_files returned {len(files) if files else 0} files")
+
             if not files:
+                print("TAB DEBUG: No files returned, showing empty message")
                 # Show empty message
                 self.remote_table.setRowCount(1)
                 empty_item = QTableWidgetItem("(Directory is empty - Connection is working)")
@@ -390,88 +330,82 @@ class ConnectionTab(QWidget):
                     empty_item = QTableWidgetItem("")
                     empty_item.setData(Qt.ItemDataRole.UserRole, None)
                     self.remote_table.setItem(0, col, empty_item)
-            else:
-                self.remote_table.setRowCount(len(files))
+                self.remote_table.setSortingEnabled(True)
+                return
 
-                for row, file in enumerate(files):
-                    # Create file info for filtering
-                    file_info = {
-                        'name': file.name,
-                        'path': self.current_remote_path,
-                        'full_path': os.path.join(self.current_remote_path, file.name),
-                        'size': file.size,
-                        'modified': file.modified,
-                        'is_dir': file.is_dir
-                    }
+            # Process files with filtering
+            visible_files = []
+            for file in files:
+                file_info = {
+                    'name': file.name,
+                    'path': self.current_remote_path,
+                    'full_path': os.path.join(self.current_remote_path, file.name) if self.current_remote_path != "/" else f"/{file.name}",
+                    'size': file.size,
+                    'modified': file.modified,
+                    'is_dir': file.is_dir
+                }
 
-                    # Check if filtered (using parent's filter manager)
-                    if hasattr(self.parent(), 'filter_manager') and self.parent().filter_manager.is_filtered(file_info):
-                        continue
+                # Check if filtered (using parent's filter manager)
+                if hasattr(self.parent(), 'filter_manager') and self.parent().filter_manager.is_filtered(file_info):
+                    continue
 
-                    # Check if should be hidden in comparison mode
-                    if hasattr(self.parent(), 'comparison_manager') and self.parent().comparison_manager.comparator.should_hide_file(file.name):
-                        continue
+                # Check if should be hidden in comparison mode
+                if hasattr(self.parent(), 'comparison_manager') and self.parent().comparison_manager.comparator.should_hide_file(file.name):
+                    continue
 
-                    # Add to comparison data (before filtering)
-                    remote_files_data.append(file_info)
+                visible_files.append(file)
 
-                    # Filename
+            # Populate table with visible files
+            print(f"TAB DEBUG: Populating table with {len(visible_files)} visible files")
+            for row, file in enumerate(visible_files):
+                print(f"TAB DEBUG: Adding file {row}: {file.name}")
+                self.remote_table.insertRow(row)
+
+                # Use proper icons from theme manager
+                try:
                     from ..icon_themes import get_icon_theme_manager
                     icon_theme_manager = get_icon_theme_manager()
                     icon = icon_theme_manager.get_file_icon(file.name, is_dir=file.is_dir)
                     name_item = QTableWidgetItem(icon, file.name)
-                    name_item.setData(Qt.ItemDataRole.UserRole, file)
+                    print(f"TAB DEBUG: Created item with icon for {file.name}")
+                except Exception as e:
+                    print(f"TAB DEBUG: Icon loading failed for {file.name}: {e}")
+                    # Fallback to text-only if icon loading fails
+                    name_item = QTableWidgetItem(file.name)
 
-                    # Apply comparison highlighting
-                    if hasattr(self.parent(), 'comparison_manager'):
-                        comparison_result = self.parent().comparison_manager.comparator.get_comparison_result(file.name, False)
-                        if comparison_result:
-                            from PyQt6.QtGui import QColor
-                            color = self.parent().comparison_manager.get_comparison_color(comparison_result)
-                            if color:
-                                name_item.setBackground(QColor(color))
+                # Ensure text is visible
+                name_item.setForeground(Qt.GlobalColor.black)
+                self.remote_table.setItem(row, 0, name_item)
 
-                    self.remote_table.setItem(row, 0, name_item)
+                if file.is_dir:
+                    size_item = QTableWidgetItem("<DIR>")
+                    size_item.setData(Qt.ItemDataRole.UserRole, 0)
+                    size_item.setForeground(Qt.GlobalColor.black)
+                else:
+                    size_str = self.parent().format_size(file.size) if hasattr(self.parent(), 'format_size') else str(file.size)
+                    from .table_managers import NumericTableWidgetItem
+                    size_item = NumericTableWidgetItem(size_str)
+                    size_item.setData(Qt.ItemDataRole.UserRole, file.size)
+                    size_item.setForeground(Qt.GlobalColor.black)
 
-                    # Size
-                    if file.is_dir:
-                        size_item = QTableWidgetItem("<DIR>")
-                    else:
-                        size_item = QTableWidgetItem(self.parent().format_size(file.size))
-                    size_item.setData(Qt.ItemDataRole.UserRole, file)
-                    self.remote_table.setItem(row, 1, size_item)
+                self.remote_table.setItem(row, 1, size_item)
 
-                    # Type
-                    if file.is_dir:
-                        type_item = QTableWidgetItem("File folder")
-                    else:
-                        # Try to determine file type from extension
-                        ext = file.name.split('.')[-1].lower() if '.' in file.name else ""
-                        type_item = QTableWidgetItem(ext.upper() + " file" if ext else "File")
-                    type_item.setData(Qt.ItemDataRole.UserRole, file)
-                    self.remote_table.setItem(row, 2, type_item)
+                type_item = QTableWidgetItem("Directory" if file.is_dir else "File")
+                type_item.setForeground(Qt.GlobalColor.black)
+                self.remote_table.setItem(row, 2, type_item)
 
-                    # Modified date
-                    date_str = file.modified.strftime("%Y-%m-%d %H:%M") if file.modified else ""
-                    date_item = QTableWidgetItem(date_str)
-                    date_item.setData(Qt.ItemDataRole.UserRole, file)
-                    self.remote_table.setItem(row, 3, date_item)
+                date_item = QTableWidgetItem(file.modified or "")
+                date_item.setForeground(Qt.GlobalColor.black)
+                self.remote_table.setItem(row, 3, date_item)
 
-            # Update comparison manager with remote file data
-            if hasattr(self.parent(), 'comparison_manager'):
-                self.parent().comparison_manager.update_directory_data(False, remote_files_data)
+                self.remote_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, file)
 
-            # Update status bar with remote directory info
-            if hasattr(self.parent(), 'status_bar'):
-                self.parent().status_bar.update_remote_directory_info(self.current_remote_path, remote_files_data)
-
-            self.remote_table.setSortingEnabled(True)  # Re-enable sorting
+            self.remote_table.setSortingEnabled(True)
+            self.remote_table.resizeColumnsToContents()
 
         except Exception as e:
-            self.parent().log(f"Error loading remote files: {e}", "error")
-            self.remote_table.setRowCount(1)
-            error_item = QTableWidgetItem(f"Error: {e}")
-            self.remote_table.setItem(0, 0, error_item)
+            print(f"Error loading remote files: {e}")
+            self.remote_table.setSortingEnabled(True)
 
     def navigate_to_remote_path(self, path):
         """Navigate to remote path"""

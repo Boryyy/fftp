@@ -141,7 +141,7 @@ class BookmarkDialog(QDialog):
         bookmarks = self.bookmark_manager.get_bookmarks()
 
         for bookmark in bookmarks:
-            icon = "📁" if bookmark.type == "local" else "🌐"
+            icon = "[LOCAL]" if bookmark.type == "local" else "[REMOTE]"
             server_info = f" ({bookmark.server_name})" if bookmark.server_name else ""
             item_text = f"{icon} {bookmark.name}{server_info}\n   {bookmark.path}"
 
