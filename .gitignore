@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+.ftp_client/
+.fftp/
+
+# User data and sensitive data (stored in ~/.fftp/, not in project)
+# These are automatically excluded since they're in user home directory
+# But adding here for clarity:
+*.encrypted
+*.hash
+salt.dat
+settings.json
+
+# Local configuration (if any created in project directory)
+config.json
+connections.json
+*.key
+*.pem
+*.p12
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
