@@ -138,7 +138,7 @@ class FTPClientGUI(QMainWindow):
                     theme = 'Light'
             except ImportError:
                 # darkdetect not available, use saved theme
-                pass
+                theme = settings.get('theme', 'Light')
 
         self.apply_theme(theme)
         self.apply_global_theme()
@@ -169,6 +169,14 @@ class FTPClientGUI(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         toolbar.setIconSize(QSize(24, 24))
+        toolbar.setStyleSheet("""
+            QToolBar {
+                background-color: #f8f9fa;
+                border-bottom: 1px solid #dee2e6;
+                spacing: 8px;
+                padding: 4px;
+            }
+        """)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         
         site_manager_btn = QPushButton("Site Manager")
@@ -366,8 +374,8 @@ class FTPClientGUI(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(8)
 
         # Top splitter: Message log from rest of panes
         self.top_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -399,10 +407,10 @@ class FTPClientGUI(QMainWindow):
         self.queue_log_splitter.addWidget(self.queue_panel)
 
         # Set splitter sizes with proper proportions
-        self.top_splitter.setSizes([150, 400])  # Log panel at top
-        self.bottom_splitter.setSizes([300, 150])  # Main area and queue
-        self.view_splitter.setSizes([300, 300])  # Equal local/remote with minimums
-        self.queue_log_splitter.setSizes([100, 50])  # Queue larger than log
+        self.top_splitter.setSizes([120, 600])  # More space for main content
+        self.bottom_splitter.setSizes([400, 200])  # Better balance
+        self.view_splitter.setSizes([350, 350])  # Equal local/remote
+        self.queue_log_splitter.setSizes([120, 80])  # Better proportions
 
         # Set stretch factors for proper resizing
         self.top_splitter.setStretchFactor(0, 0)  # Log panel doesn't stretch
