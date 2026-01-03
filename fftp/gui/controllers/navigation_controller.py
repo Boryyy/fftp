@@ -146,7 +146,9 @@ class NavigationController(QObject):
         # Get parent directory
         parts = self.current_remote_path.rstrip('/').split('/')
         if len(parts) > 1:
-            parent = '/'.join(parts[:-1]) or '/'
+            parent = '/'.join(parts[:-1])
+            if not parent.startswith('/'):
+                parent = '/' + parent
         else:
             parent = '/'
         

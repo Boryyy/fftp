@@ -36,10 +36,14 @@ def upload_file(manager, local_path: Path, current_remote_path: str,
 
             if current_remote_path == "." or current_remote_path == "":
                 remote_path = local_path.name
+                if not remote_path.startswith('/'):
+                    remote_path = f"/{remote_path}"
             else:
-                remote_path = f"{current_remote_path.rstrip('/')}/{local_path.name}".lstrip("./")
+                base_path = current_remote_path if current_remote_path.startswith('/') else f"/{current_remote_path}"
+                remote_path = f"{base_path.rstrip('/')}/{local_path.name}"
         else:
-            remote_path = f"{current_remote_path.rstrip('/')}/{local_path.name}".lstrip("./")
+            base_path = current_remote_path if current_remote_path.startswith('/') else f"/{current_remote_path}"
+            remote_path = f"{base_path.rstrip('/')}/{local_path.name}"
 
         # Check if remote file exists and handle overwrite
         remote_file_exists = False
@@ -292,7 +296,9 @@ def create_remote_folder(manager, current_remote_path: str, parent_widget=None,
         return False
     
     try:
-        remote_path = f"{current_remote_path}/{name}".lstrip("./")
+        # Ensure path starts with / and is absolute
+        base_path = current_remote_path if current_remote_path.startswith('/') else f"/{current_remote_path}"
+        remote_path = f"{base_path.rstrip('/')}/{name}"
         if log_callback:
             log_callback(f"Creating remote folder: {name} at {remote_path}")
         
