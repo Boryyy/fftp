@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QToolBar, QLabel, QPushButton, QLineEdit, QSpinBox, QWidget
+from PyQt6.QtWidgets import QToolBar, QLabel, QPushButton, QLineEdit, QWidget
 from PyQt6.QtCore import Qt
 
 class ToolbarManager:
@@ -74,10 +74,12 @@ class ToolbarManager:
         port_label = QLabel("Port:")
         self.toolbar.addWidget(port_label)
 
-        self.quick_port = QSpinBox()
+        # Use custom PortSpinBox for reliable button functionality
+        from ..widgets import PortSpinBox
+        self.quick_port = PortSpinBox()
         self.quick_port.setRange(1, 65535)
         self.quick_port.setValue(21)
-        self.quick_port.setMinimumWidth(60) # Increased for better button spacing
+        self.quick_port.setMinimumWidth(68)  # Accommodate line edit + buttons
         self.quick_port.setMinimumHeight(24)
         self.toolbar.addWidget(self.quick_port)
 

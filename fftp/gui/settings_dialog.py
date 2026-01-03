@@ -17,11 +17,41 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Settings - Fftp")
         self.setGeometry(300, 300, 700, 650)
+        
+        # Fix black background issue - set proper background color
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+            }
+            QTabWidget::pane {
+                background-color: #ffffff;
+                border: 1px solid #e5e7eb;
+            }
+            QWidget {
+                background-color: #ffffff;
+            }
+            QGroupBox {
+                background-color: #f9fafb;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                margin-top: 12px;
+                padding-top: 12px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 8px;
+                background-color: #ffffff;
+            }
+        """)
+        
         self.settings = self.load_settings()
         self.init_ui()
     
     def init_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         tabs = QTabWidget()
         

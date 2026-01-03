@@ -1,6 +1,7 @@
 """
 Theme Manager for FFTP
-Centralizes application-wide styling with a modern dark theme.
+Centralizes application-wide styling with a modern professional theme.
+Updated as part of Phase 14: UI/UX Redesign
 """
 
 from PyQt6.QtGui import QColor, QPalette
@@ -9,44 +10,52 @@ from PyQt6.QtWidgets import QApplication
 class ThemeManager:
     """Manages application theme and stylesheets"""
     
-    # Modern Dark Color Palette
-    DARK_COLORS = {
-        "background": "#1e1e1e",
-        "surface": "#252526",
-        "surface_light": "#2d2d30",
-        "text": "#d4d4d4",
-        "text_secondary": "#a0a0a0",
-        "accent": "#007acc",
-        "accent_hover": "#0098ff",
-        "accent_pressed": "#005c99",
-        "border": "#3e3e42",
-        "success": "#4caf50",
-        "error": "#f44336",
-        "warning": "#ff9800",
-        "selection": "#264f78",
-        "input_bg": "#3c3c3c"
-    }
-
-    # Light Color Palette (Refined for Modern Minimalism)
+    # Professional Light Color Palette (Primary)
     LIGHT_COLORS = {
-        "background": "#f5f5f5",           # Subtle gray background
-        "panel_bg": "#ffffff",             # White for file lists
-        "toolbar_bg": "#ffffff",           # White toolbar for cleanliness
-        "input_bg": "#ffffff",             # White inputs
-        "border": "#d1d1d1",               # Very subtle gray borders
-        "text": "#202124",                 # Modern dark gray text
-        "text_secondary": "#5f6368",       # Modern gray for labels
-        "accent": "#1a73e8",               # Modern Google-style blue
-        "accent_hover": "#174ea6",         
-        "accent_pressed": "#1558d6",
-        "success": "#1e8e3e",              
-        "error": "#d93025",                
-        "warning": "#f9ab00",              
-        "selection": "#e8f0fe",            # Subtle light blue selection
-        "hover": "#f1f3f4",                # Subtle gray hover
+        # Primary Brand Colors
+        "primary": "#2563eb",           # Modern blue (primary actions)
+        "primary_hover": "#1d4ed8",     # Darker blue (hover state)
+        "primary_pressed": "#1e40af",   # Even darker (pressed state)
+        
+        # Accent & Status Colors
+        "accent": "#10b981",            # Success green (accent)
+        "accent_hover": "#059669",      # Darker green
+        "success": "#10b981",           # Success state
+        "warning": "#f59e0b",           # Warning state
+        "error": "#ef4444",             # Error state
+        "info": "#3b82f6",              # Info state
+        
+        # Neutral Colors (Background & Surfaces)
+        "background": "#ffffff",        # Main background (white)
+        "surface": "#f9fafb",           # Secondary surface (very light gray)
+        "panel_bg": "#ffffff",          # Panel background
+        "toolbar_bg": "#ffffff",        # Toolbar background
+        "input_bg": "#ffffff",          # Input background
+        
+        # Borders & Dividers
+        "border": "#e5e7eb",            # Standard border (light gray)
+        "border_dark": "#d1d5db",       # Darker border for emphasis
+        "border_light": "#f3f4f6",      # Lighter border for subtle division
+        
+        # Text Colors
+        "text": "#111827",              # Primary text (near black)
+        "text_secondary": "#6b7280",    # Secondary text (gray)
+        "text_tertiary": "#9ca3af",     # Tertiary text (light gray)
+        "text_disabled": "#d1d5db",     # Disabled text
+        
+        # Interactive States
+        "hover": "#f3f4f6",             # Hover background
+        "selection": "#dbeafe",         # Selection background (light blue)
+        "focus": "#3b82f6",             # Focus outline
+        
+        # Transfer States
+        "transfer_active": "#3b82f6",   # Active transfer (blue)
+        "transfer_complete": "#10b981", # Completed transfer (green)
+        "transfer_failed": "#ef4444",   # Failed transfer (red)
+        "transfer_queued": "#6b7280",   # Queued transfer (gray)
     }
 
-    # Active colors (default to Light based on previous request)
+    # Active colors (default to Light)
     COLORS = LIGHT_COLORS
 
     @classmethod
@@ -113,39 +122,59 @@ class ThemeManager:
                 border-right: none;
             }}
 
-            /* Buttons - Minimalistic */
+            /* Buttons - Modern Professional */
             QPushButton {{
-                background-color: #f1f2f6; /* Slightly darker than background for contrast */
+                background-color: {cls.COLORS["surface"]};
                 color: {cls.COLORS["text"]};
                 border: 1px solid {cls.COLORS["border"]};
-                padding: 3px 8px; /* Reduced padding for compact buttons */
-                border-radius: 4px;
+                padding: 6px 12px;
+                border-radius: 6px;
                 font-weight: 500;
+                font-size: 11px;
             }}
             QPushButton:hover {{
                 background-color: {cls.COLORS["hover"]};
-                border-color: {cls.COLORS["accent"]};
+                border-color: {cls.COLORS["primary"]};
             }}
             QPushButton:pressed {{
                 background-color: {cls.COLORS["border"]};
-                padding-top: 4px;
-                padding-left: 9px;
             }}
             QPushButton:disabled {{
-                color: {cls.COLORS["text_secondary"]};
+                color: {cls.COLORS["text_disabled"]};
+                background-color: {cls.COLORS["surface"]};
+                border-color: {cls.COLORS["border_light"]};
+            }}
+            
+            /* Primary Action Buttons */
+            QPushButton[primary="true"] {{
+                background-color: {cls.COLORS["primary"]};
+                color: white;
+                border: none;
+            }}
+            QPushButton[primary="true"]:hover {{
+                background-color: {cls.COLORS["primary_hover"]};
+            }}
+            QPushButton[primary="true"]:pressed {{
+                background-color: {cls.COLORS["primary_pressed"]};
             }}
 
-            /* Inputs */
-            QLineEdit, QSpinBox {{
+            /* Inputs - Clean & Modern */
+            QLineEdit {{
                 background-color: {cls.COLORS["input_bg"]};
                 border: 1px solid {cls.COLORS["border"]};
-                border-radius: 4px;
-                padding: 3px 6px;
+                border-radius: 6px;
+                padding: 6px 8px;
                 selection-background-color: {cls.COLORS["selection"]};
-                selection-color: {cls.COLORS["accent"]};
+                selection-color: {cls.COLORS["text"]};
+                font-size: 11px;
             }}
-            QLineEdit:focus, QSpinBox:focus {{
-                border: 1px solid {cls.COLORS["accent"]};
+            QLineEdit:focus {{
+                border: 2px solid {cls.COLORS["focus"]};
+                padding: 5px 7px;
+            }}
+            QLineEdit:disabled {{
+                background-color: {cls.COLORS["surface"]};
+                color: {cls.COLORS["text_disabled"]};
             }}
 
             QSpinBox {{
@@ -186,21 +215,37 @@ class ThemeManager:
                 height: 0;
             }}
 
-            /* Tables & TreeViews - Seamless */
+            /* Tables & TreeViews - Modern & Clean */
             QTableView, QTreeView, QTableWidget {{
                 background-color: {cls.COLORS["panel_bg"]};
                 border: 1px solid {cls.COLORS["border"]};
-                gridline-color: {cls.COLORS["hover"]};
+                gridline-color: {cls.COLORS["border_light"]};
                 outline: none;
+                selection-background-color: {cls.COLORS["selection"]};
+                selection-color: {cls.COLORS["text"]};
+                font-size: 11px;
+            }}
+            QTableView::item:hover, QTreeView::item:hover {{
+                background-color: {cls.COLORS["hover"]};
+            }}
+            QTableView::item:selected, QTreeView::item:selected {{
+                background-color: {cls.COLORS["selection"]};
+                color: {cls.COLORS["text"]};
             }}
             QHeaderView::section {{
-                background-color: {cls.COLORS["background"]};
+                background-color: {cls.COLORS["surface"]};
                 color: {cls.COLORS["text_secondary"]};
-                padding: 8px;
+                padding: 8px 12px;
                 border: none;
-                border-bottom: 1px solid {cls.COLORS["border"]};
-                border-right: 1px solid {cls.COLORS["border"]};
+                border-bottom: 2px solid {cls.COLORS["border"]};
+                border-right: 1px solid {cls.COLORS["border_light"]};
                 font-weight: 600;
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            QHeaderView::section:hover {{
+                background-color: {cls.COLORS["hover"]};
             }}
             QHeaderView::section:last {{
                 border-right: none;
