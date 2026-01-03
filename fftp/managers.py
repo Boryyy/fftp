@@ -160,10 +160,13 @@ class SFTPManager:
             for item in items:
                 try:
                     is_dir = paramiko.stat.S_ISDIR(item.st_mode)
-                    if path == "." or path == "":
-                        file_path = item.filename
+                    
+                    # Ensure path is absolute for SFTP as well
+                    base_path = path if path.startswith('/') else f"/{path}"
+                    if base_path == "/":
+                        file_path = f"/{item.filename}"
                     else:
-                        file_path = f"{path.rstrip('/')}/{item.filename}"
+                        file_path = f"{base_path.rstrip('/')}/{item.filename}"
                     
                     files.append(RemoteFile(
                         name=item.filename,
@@ -368,7 +371,7 @@ class FTPManager:
         except Exception as e:
             raise Exception(f"List error: {str(e)}")
     
-    def _parse_ftp_line(self, line: str, files: list, current_path: str = "."):
+    def _parse_ftp_line(self, line: str, files: list, current_path: str = "/"):
         """Parse FTP LIST output"""
         try:
             parts = line.split()
@@ -383,10 +386,9 @@ class FTPManager:
                 except:
                     size = 0
 
-                if current_path == "." or current_path == "/":
-                    file_path = name
-                else:
-                    file_path = f"{current_path.rstrip('/')}/{name}"
+                # Ensure current_path is absolute and then join
+                base_path = current_path if current_path.startswith('/') else f"/{current_path}"
+                file_path = f"{base_path.rstrip('/')}/{name}"
 
                 files.append(RemoteFile(
                     name=name,
