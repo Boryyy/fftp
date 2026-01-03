@@ -73,10 +73,11 @@ class TransferEngine(QObject):
             # Use the high-level upload_file function with overwrite checking
             from .file_operations import upload_file
 
-            # Determine the remote directory path
-            remote_dir = os.path.dirname(self.remote_file)
-            if not remote_dir or remote_dir == ".":
-                remote_dir = tab.current_remote_path if tab.current_remote_path != "." else "/"
+            # Determine the remote directory path from the full remote path
+            # self.remote_file is now the full path (e.g., /asd/file.txt)
+            remote_dir = os.path.dirname(self.remote_file) or "/"
+            if not remote_dir.startswith('/'):
+                remote_dir = "/" + remote_dir
 
             # Create a simple progress callback
             def progress_callback(current, total):

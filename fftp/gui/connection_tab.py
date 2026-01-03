@@ -409,6 +409,7 @@ class ConnectionTab(QWidget):
                 visible_files.append(file)
 
             # Add parent directory entry (..) if not at root
+            offset = 0
             if self.current_remote_path and self.current_remote_path != "/" and self.current_remote_path != ".":
                 self.remote_table.insertRow(0)
                 parent_item = QTableWidgetItem("..")
@@ -427,42 +428,21 @@ class ConnectionTab(QWidget):
                         self.modified = ""
                 parent_dir = ParentDir("/".join(self.current_remote_path.split("/")[:-1]) or "/")
                 self.remote_table.item(0, 0).setData(Qt.ItemDataRole.UserRole, parent_dir)
+                offset = 1
 
-            # Populate table with visible files
-            for i, file in enumerate(visible_files):
-                row = i + (1 if self.current_remote_path and self.current_remote_path != "/" and self.current_remote_path != "." else 0)
-                self.remote_table.insertRow(row)
+            # Separate directories and files for consistent sorting (Folders first)
+            visible_dirs = [f for f in visible_files if f.is_dir]
+            visible_non_dirs = [f for f in visible_files if not f.is_dir]
 
-                # Simple text-only display (no icons needed for clean UI)
-                name_item = QTableWidgetItem(file.name)
-
-                # Text color will be handled by theme, don't force black
-                self.remote_table.setItem(row, 0, name_item)
-
-                if file.is_dir:
-                    size_item = QTableWidgetItem("")
-                    size_item.setData(Qt.ItemDataRole.UserRole, 0)
-                else:
-                    try:
-                        from ..table_managers import format_size, NumericTableWidgetItem
-                        size_str = format_size(file.size)
-                        size_item = NumericTableWidgetItem(size_str)
-                        size_item.setData(Qt.ItemDataRole.UserRole, file.size)
-                    except ImportError:
-                        # Fallback if import fails
-                        size_str = f"{file.size}"
-                        size_item = QTableWidgetItem(size_str)
-                        size_item.setData(Qt.ItemDataRole.UserRole, file.size)
-
-                self.remote_table.setItem(row, 1, size_item)
-
-                type_item = QTableWidgetItem("Directory" if file.is_dir else "File")
-                self.remote_table.setItem(row, 2, type_item)
-
-                date_item = QTableWidgetItem(file.modified or "")
-                self.remote_table.setItem(row, 3, date_item)
-
-                self.remote_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, file)
+            # Populate table with directories first
+            for i, file in enumerate(visible_dirs):
+                row = i + offset
+                self._add_file_row(row, file)
+            
+            # Then populate with files
+            for i, file in enumerate(visible_non_dirs):
+                row = i + offset + len(visible_dirs)
+                self._add_file_row(row, file)
 
             self.remote_table.setSortingEnabled(True)
             self.remote_table.resizeColumnsToContents()
@@ -481,6 +461,31 @@ class ConnectionTab(QWidget):
                     empty_item = QTableWidgetItem("")
                     self.remote_table.setItem(0, col, empty_item)
                 self.remote_table.setSortingEnabled(True)
+
+    def _add_file_row(self, row, file):
+        """Helper to add a single file row to the remote table"""
+        self.remote_table.insertRow(row)
+        name_item = QTableWidgetItem(file.name)
+        self.remote_table.setItem(row, 0, name_item)
+
+        if file.is_dir:
+            size_item = QTableWidgetItem("")
+            size_item.setData(Qt.ItemDataRole.UserRole, 0)
+        else:
+            try:
+                from ..table_managers import format_size, NumericTableWidgetItem
+                size_str = format_size(file.size)
+                size_item = NumericTableWidgetItem(size_str)
+                size_item.setData(Qt.ItemDataRole.UserRole, file.size)
+            except ImportError:
+                size_str = f"{file.size}"
+                size_item = QTableWidgetItem(size_str)
+                size_item.setData(Qt.ItemDataRole.UserRole, file.size)
+
+        self.remote_table.setItem(row, 1, size_item)
+        self.remote_table.setItem(row, 2, QTableWidgetItem("Directory" if file.is_dir else "File"))
+        self.remote_table.setItem(row, 3, QTableWidgetItem(file.modified or ""))
+        self.remote_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, file)
 
     def navigate_to_remote_path(self, path):
         """Navigate to remote path"""

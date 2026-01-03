@@ -9,7 +9,7 @@ from .connection_worker import ConnectionWorker
 
 
 def connect_to_server(config: ConnectionConfig, manager, connection_worker,
-                     connect_btn, status_callback=None, log_callback=None):
+                     connect_btn, status_callback=None, log_callback=None, tab=None):
     """Initiate connection to server"""
     if not config:
         if status_callback:
@@ -38,6 +38,7 @@ def connect_to_server(config: ConnectionConfig, manager, connection_worker,
     
     manager_class = SFTPManager if config.protocol == "sftp" else FTPManager
     worker = ConnectionWorker(config, manager_class)
+    worker.tab = tab
     
     if log_callback:
         log_callback(f"Starting connection to {config.host}:{config.port} ({config.protocol.upper()})")

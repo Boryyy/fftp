@@ -302,4 +302,39 @@ class ThemeManager:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 width: 0px;
             }}
+
+            /* Menus - Modern & Professional */
+            QMenu {{
+                background-color: {cls.COLORS["background"]};
+                border: 1px solid {cls.COLORS["border"]};
+                padding: 4px;
+                border-radius: 6px;
+            }}
+            QMenu::item {{
+                padding: 6px 24px;
+                border-radius: 4px;
+                color: {cls.COLORS["text"]};
+            }}
+            QMenu::item:selected {{
+                background-color: {cls.COLORS["selection"]};
+                color: {cls.COLORS["primary"]};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {cls.COLORS["border"]};
+                margin: 4px 8px;
+            }}
+            
+            QMenuBar {{
+                background-color: {cls.COLORS["background"]};
+                border-bottom: 1px solid {cls.COLORS["border"]};
+            }}
+            QMenuBar::item {{
+                padding: 8px 12px;
+                background: transparent;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {cls.COLORS["hover"]};
+                border-radius: 4px;
+            }}
         """

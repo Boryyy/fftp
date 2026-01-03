@@ -914,7 +914,8 @@ class FTPClientGUI(QMainWindow):
             tab.config, tab.manager, tab.connection_worker,
             self.toolbar_manager.connect_btn,
             status_callback=lambda msg: self.statusBar().showMessage(msg),
-            log_callback=self.log
+            log_callback=self.log,
+            tab=tab
         )
         if worker:
             tab.connection_worker = worker
@@ -1178,7 +1179,7 @@ class FTPClientGUI(QMainWindow):
                 log_callback=self.log,
                 status_callback=lambda msg: self.statusBar().showMessage(msg),
                 queue_callback=lambda d, l, r, s, st: self.add_to_transfer_queue(d, l, r, s, st),
-                move_completed_callback=lambda: self.move_to_completed(self.queue_table.rowCount() - 1),
+                move_completed_callback=lambda: self.move_to_completed(self.queue_panel.active_queue_table.rowCount() - 1),
                 refresh_callback=self.load_remote_files,
                 format_size_func=self.format_size,
                 parent_widget=self,
@@ -1369,8 +1370,13 @@ class FTPClientGUI(QMainWindow):
             path = Path(path_str)
             if path.is_file():
                 size = format_size(path.stat().st_size)
+                # Construct full remote path
+                remote_path = f"{tab.current_remote_path.rstrip('/')}/{path.name}"
+                if not remote_path.startswith('/'):
+                    remote_path = f"/{remote_path}"
+                
                 # Add to queue (Manager will pick it up)
-                self.add_to_transfer_queue("Upload", str(path), tab.current_remote_path, size)
+                self.add_to_transfer_queue("Upload", str(path), remote_path, size)
         
         # Trigger processing
         self.process_next_transfer()
@@ -1417,8 +1423,13 @@ class FTPClientGUI(QMainWindow):
                 local_path = os.path.join(self.current_local_path, name)
                 size = format_size(remote_file.size)
                 
+                # Ensure remote path is absolute
+                remote_path = remote_file.path
+                if not remote_path.startswith('/'):
+                    remote_path = f"/{remote_path}"
+                
                 # Add to queue
-                self.add_to_transfer_queue("Download", local_path, remote_file.path, size)
+                self.add_to_transfer_queue("Download", local_path, remote_path, size)
         
         # Trigger processing
         self.process_next_transfer()
@@ -1496,7 +1507,7 @@ class FTPClientGUI(QMainWindow):
         if app:
             ThemeManager.apply_theme(app)
     
-    def add_to_transfer_queue(self, direction, local_file, remote_file, size, status):
+    def add_to_transfer_queue(self, direction, local_file, remote_file, size, status=None):
         """Add transfer to active queue (delegates to queue_panel)"""
         if hasattr(self, 'queue_panel'):
             self.queue_panel.add_to_transfer_queue(direction, local_file, remote_file, size, status)
@@ -1711,33 +1722,7 @@ class FTPClientGUI(QMainWindow):
             tab.context_menu_manager.create_remote_tree_context_menu(tab.remote_tree, position)
 
     # Context menu action implementations
-    def upload_selected_local(self):
-        """Upload selected local files"""
-        selected_rows = set()
-        for item in self.local_panel.local_table.selectedItems():
-            selected_rows.add(item.row())
 
-        for row in selected_rows:
-            item = self.local_panel.local_table.item(row, 0)
-            if item:
-                path_str = item.data(Qt.ItemDataRole.UserRole)
-                if path_str:
-                    self.upload_file_from_path(Path(path_str))
-
-    def download_selected_remote(self):
-        """Download selected remote files"""
-        tab = self.get_current_tab()
-        if tab:
-            selected_rows = set()
-            for item in tab.remote_table.selectedItems():
-                selected_rows.add(item.row())
-
-            for row in selected_rows:
-                item = tab.remote_table.item(row, 0)
-                if item:
-                    file_data = item.data(Qt.ItemDataRole.UserRole)
-                    if file_data and hasattr(file_data, 'name'):
-                        self.download_remote_file(file_data)
 
     def open_selected_local_file(self):
         """Open selected local file"""
@@ -2126,8 +2111,11 @@ class FTPClientGUI(QMainWindow):
             try:
                 if path.is_file():
                     # Upload file
+                    # Upload file - ensure absolute remote path
                     remote_name = path.name
-                    remote_path = f"{tab.current_remote_path}/{remote_name}" if tab.current_remote_path != "." else remote_name
+                    remote_path = f"{tab.current_remote_path.rstrip('/')}/{remote_name}"
+                    if not remote_path.startswith('/'):
+                        remote_path = f"/{remote_path}"
 
                     success = self._upload_single_file(path, remote_path, tab.manager)
                     if success:
