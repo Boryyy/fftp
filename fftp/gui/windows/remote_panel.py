@@ -105,8 +105,16 @@ class RemoteFilePanel(QWidget):
 
     def get_current_tab(self):
         """Get the currently active tab"""
+        # First try the tracked active_tab_id
         if self.active_tab_id and self.active_tab_id in self.connection_tabs:
             return self.connection_tabs[self.active_tab_id]
+        # Fallback: get from current tab widget
+        current_widget = self.remote_tabs.currentWidget()
+        if current_widget:
+            tab_id = id(current_widget)
+            if tab_id in self.connection_tabs:
+                self.active_tab_id = tab_id
+                return self.connection_tabs[tab_id]
         return None
 
     def get_tab_count(self):

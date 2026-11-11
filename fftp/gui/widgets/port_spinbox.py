@@ -34,7 +34,7 @@ class PortSpinBox(QWidget):
         self.line_edit = QLineEdit()
         self.line_edit.setText(str(self._value))
         self.line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.line_edit.setMaximumWidth(50)
+        self.line_edit.setFixedWidth(56)
         self.line_edit.setMinimumHeight(24)
         
         # Validator for numeric input
@@ -151,11 +151,6 @@ class PortSpinBox(QWidget):
         except ValueError:
             # Reset to current value if invalid
             self.line_edit.setText(str(self._value))
-    
-    def setMinimumWidth(self, width: int):
-        """Override to set line edit width"""
-        self.line_edit.setMaximumWidth(width - 36)  # Account for buttons
-        super().setMinimumWidth(width)
     
     def setMinimumHeight(self, height: int):
         """Override to set consistent height"""

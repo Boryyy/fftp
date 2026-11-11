@@ -112,7 +112,7 @@ def handle_connection_finished(worker, success, msg, config, manager_ref,
         if disconnect_btn:
             disconnect_btn.setEnabled(False)
         if connect_btn:
-            connect_btn.setText("Connect")
+            connect_btn.setText("Quickconnect")
             connect_btn.setProperty("class", "primary")
             connect_btn.style().unpolish(connect_btn)
             connect_btn.style().polish(connect_btn)
@@ -149,7 +149,7 @@ def disconnect(manager, connection_worker, disconnect_action, remote_table,
             if remote_table:
                 remote_table.setRowCount(0)
             if connect_btn:
-                connect_btn.setText("Connect")
+                connect_btn.setText("Quickconnect")
                 connect_btn.setEnabled(True)
                 connect_btn.setProperty("class", "primary")
                 connect_btn.style().unpolish(connect_btn)

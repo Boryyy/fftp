@@ -117,7 +117,7 @@ class RemoteFileEditor(QDialog):
         # File info
         info_layout = QHBoxLayout()
         info_label = QLabel(f"Editing: {self.remote_path}")
-        info_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        info_label.setStyleSheet("font-weight: bold;")
         info_layout.addWidget(info_label)
 
         info_layout.addStretch()
@@ -169,35 +169,8 @@ class RemoteFileEditor(QDialog):
 
     def setup_syntax_highlighting(self):
         """Set up basic syntax highlighting based on file extension"""
-        ext = Path(self.file_name).suffix.lower()
-
-        if ext in ['.py', '.js', '.java', '.cpp', '.c', '.h', '.php']:
-            # Basic code highlighting
-            self.text_edit.setStyleSheet("""
-                QTextEdit {
-                    background-color: #f8f8f8;
-                    color: #2c3e50;
-                    selection-background-color: #3498db;
-                }
-            """)
-        elif ext in ['.txt', '.md', '.log']:
-            # Plain text
-            self.text_edit.setStyleSheet("""
-                QTextEdit {
-                    background-color: #ffffff;
-                    color: #2c3e50;
-                    selection-background-color: #3498db;
-                }
-            """)
-        elif ext in ['.xml', '.html', '.css', '.json']:
-            # Markup/Web files
-            self.text_edit.setStyleSheet("""
-                QTextEdit {
-                    background-color: #f9f9f9;
-                    color: #2c3e50;
-                    selection-background-color: #3498db;
-                }
-            """)
+        # No hardcoded styles - ThemeManager handles all colors
+        pass
 
     def download_file(self):
         """Download the remote file"""

@@ -395,7 +395,11 @@ class SearchDialog(QDialog):
         """Stop the current search"""
         if self.search_worker:
             self.search_worker.cancel()
-            self.stop_search()
+            self.search_worker = None
+        self.search_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        self.progress_bar.setVisible(False)
+        self.results_info.setText("Search stopped.")
 
     def on_search_progress(self, current, total):
         """Handle search progress updates"""

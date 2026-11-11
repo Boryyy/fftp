@@ -391,11 +391,15 @@ class ConnectionManagerDialog(QDialog):
         self.name_input.setFocus()
     
     def edit_site(self):
-        pass
-    
+        """Edit the currently selected site - focuses name field for editing"""
+        current = self.site_tree.currentItem()
+        if current and current.parent():
+            self.name_input.setFocus()
+            self.name_input.selectAll()
+
     def delete_site(self):
-        row = self.conn_list.currentRow()
-        if row >= 0:
+        current = self.site_tree.currentItem()
+        if current and current.parent():
             reply = QMessageBox.question(
                 self, "Confirm Delete",
                 f"Are you sure you want to delete this connection?",

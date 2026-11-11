@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QToolBar, QLabel, QPushButton, QLineEdit, QWidget
+from PyQt6.QtWidgets import QSpinBox, QToolBar, QLabel, QPushButton, QLineEdit, QWidget, QComboBox
 from PyQt6.QtCore import Qt
 
 class ToolbarManager:
@@ -11,6 +11,7 @@ class ToolbarManager:
         self.quick_user = None
         self.quick_pass = None
         self.quick_port = None
+        self.quick_protocol = None
         self.connect_btn = None
         self.disconnect_btn = None
         self.refresh_btn = None
@@ -39,6 +40,12 @@ class ToolbarManager:
 
         # Quick Connect Bar
         # Quick Connect Bar
+        self.quick_protocol = QComboBox()
+        self.quick_protocol.addItems(["FTP", "SFTP"])
+        self.quick_protocol.setMinimumHeight(24)
+        self.quick_protocol.setToolTip("Protocol")
+        self.toolbar.addWidget(self.quick_protocol)
+
         host_label = QLabel("Host:")
         self.toolbar.addWidget(host_label)
 
@@ -79,9 +86,16 @@ class ToolbarManager:
         self.quick_port = PortSpinBox()
         self.quick_port.setRange(1, 65535)
         self.quick_port.setValue(21)
-        self.quick_port.setMinimumWidth(68)  # Accommodate line edit + buttons
         self.quick_port.setMinimumHeight(24)
         self.toolbar.addWidget(self.quick_port)
+
+        def _protocol_changed(text):
+            if self.quick_port.value() in (21, 22):
+                self.quick_port.setValue(22 if text == "SFTP" else 21)
+        self.quick_protocol.currentTextChanged.connect(_protocol_changed)
+        self.quick_port.valueChanged.connect(
+            lambda v: self.quick_protocol.setCurrentText("SFTP") if v == 22 else (
+                self.quick_protocol.setCurrentText("FTP") if v == 21 else None))
 
         self.connect_btn = QPushButton("Quickconnect")
         self.connect_btn.setMinimumHeight(24)

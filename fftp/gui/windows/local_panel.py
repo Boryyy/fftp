@@ -66,7 +66,7 @@ class LocalFilePanel(QWidget):
 
         # Up button - Compact but visible
         local_up_btn = QPushButton("Up")
-        local_up_btn.setFixedWidth(40)
+        local_up_btn.setMinimumWidth(40 + 20)
         local_up_btn.setMinimumHeight(24)
         local_up_btn.setToolTip("Go up one directory")
         local_up_btn.clicked.connect(self.local_up)
@@ -74,7 +74,7 @@ class LocalFilePanel(QWidget):
 
         # Refresh button - Visible
         local_refresh_btn = QPushButton("Refresh")
-        local_refresh_btn.setFixedWidth(65)
+        local_refresh_btn.setMinimumWidth(65 + 20)
         local_refresh_btn.setMinimumHeight(24)
         local_refresh_btn.setToolTip("Refresh local files")
         local_refresh_btn.clicked.connect(self.load_local_files)
@@ -82,7 +82,7 @@ class LocalFilePanel(QWidget):
 
         # New Folder button - Match Remote
         local_new_folder_btn = QPushButton("New Folder")
-        local_new_folder_btn.setFixedWidth(85)
+        local_new_folder_btn.setMinimumWidth(85 + 20)
         local_new_folder_btn.setMinimumHeight(24)
         local_new_folder_btn.setToolTip("Create new local folder")
         local_new_folder_btn.clicked.connect(self.create_local_folder)
@@ -143,10 +143,10 @@ class LocalFilePanel(QWidget):
         self.local_table.setColumnWidth(3, 120)  # Modified: reasonable
 
         self.local_table.horizontalHeader().setMinimumSectionSize(60)  # Minimum column width
-        self.local_table.horizontalHeader().setMaximumSectionSize(400)  # Maximum for filename column
+        self.local_table.horizontalHeader().setMaximumSectionSize(2000)  # Maximum for filename column
 
         # Make all columns resizable for user flexibility
-        self.local_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.local_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.local_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.local_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.local_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)

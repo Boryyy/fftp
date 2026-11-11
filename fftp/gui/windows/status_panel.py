@@ -3,10 +3,8 @@ Status Panel - Handles logging and status display
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
-    QGroupBox, QTextEdit
+    QWidget, QVBoxLayout, QTextEdit
 )
-from PyQt6.QtCore import Qt
 from datetime import datetime
 
 
@@ -16,67 +14,49 @@ class StatusPanel(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-
-        # Initialize components
         self.message_log = None
         self.log_messages = []
-
         self.init_ui()
 
     def init_ui(self):
-        """Initialize the status panel UI - Reconstructed for Minimalism"""
-        # Status area layout
+        """Initialize the status panel UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Message log - Using QTextEdit for HTML color support
         self.message_log = QTextEdit()
         self.message_log.setReadOnly(True)
         self.message_log.setAcceptRichText(True)
-        
-        self.message_log.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: #fcfcfc;
-                border: none;
-                border-bottom: 1px solid #d1d1d1;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 11px;
-                color: #202124;
-                padding: 4px;
-            }}
-        """)
-        
+        # Style managed by ThemeManager - no hardcoded stylesheet
         layout.addWidget(self.message_log)
 
     def log(self, message, level="info"):
         """Add a message to the log display"""
-        from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
         prefix = f"[{level.upper()}]"
-        
-        color = {
-            "info": "#202124",
-            "error": "#d93025",
-            "success": "#1e8e3e",
-            "debug": "#5f6368"
-        }.get(level, "#202124")
 
-        html_message = f'<span style="color: {color};">{timestamp} {prefix} {message}</span>'
+        # Use theme-aware colors
+        from ..theme_manager import ThemeManager
+        c = ThemeManager.COLORS
+        color_map = {
+            "info": c["text_secondary"],
+            "error": c["error"],
+            "success": c["success"],
+            "warning": c["warning"],
+            "debug": c["text_tertiary"],
+        }
+        color = color_map.get(level, c["text_secondary"])
 
-        # Add to internal storage
+        html_message = f'<span style="color: {color}; font-size: 11px;">{timestamp} {prefix} {message}</span>'
+
         log_entry = f"{timestamp} {prefix} {message}"
         self.log_messages.append(log_entry)
 
-        # Keep only last 500 messages
         if len(self.log_messages) > 500:
             self.log_messages = self.log_messages[-500:]
 
-        # Update display
         if self.message_log:
             self.message_log.append(html_message)
-
-            # Auto-scroll to bottom
             scrollbar = self.message_log.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
 
@@ -109,5 +89,4 @@ class StatusPanel(QWidget):
                     f.write(message + "\n")
             return True
         except Exception as e:
-            QMessageBox.critical(parent, "Export Error", f"Failed to export log: {str(e)}")
             return False

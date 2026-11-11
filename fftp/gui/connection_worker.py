@@ -17,7 +17,21 @@ class ConnectionWorker(QThread):
         self.config = config
         self.manager_class = manager_class
         self.manager = None
-    
+        self._cancelled = False
+
+    def cancel(self):
+        """Request cancellation; a result arriving afterwards is discarded"""
+        self._cancelled = True
+        try:
+            self.finished.disconnect()
+        except TypeError:
+            pass
+        if self.manager:
+            try:
+                self.manager.disconnect()
+            except Exception:
+                pass
+
     def run(self):
         """Run connection in background thread"""
         try:

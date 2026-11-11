@@ -29,7 +29,7 @@ class ConnectionTab(QWidget):
         self.connection_worker = None
 
         # Context menu manager
-        self.context_menu_manager = ContextMenuManager(self.parent())
+        self.context_menu_manager = ContextMenuManager(self.main_window)
 
         self.init_ui()
     
@@ -57,7 +57,7 @@ class ConnectionTab(QWidget):
 
         # Up button - Compact but visible
         remote_up_btn = QPushButton("Up")
-        remote_up_btn.setFixedWidth(40)
+        remote_up_btn.setMinimumWidth(40 + 20)
         remote_up_btn.setMinimumHeight(24)
         remote_up_btn.setToolTip("Go up one directory")
         remote_up_btn.clicked.connect(self.remote_up)
@@ -66,7 +66,7 @@ class ConnectionTab(QWidget):
 
         # Refresh button - Visible
         remote_refresh_btn = QPushButton("Refresh")
-        remote_refresh_btn.setFixedWidth(65)
+        remote_refresh_btn.setMinimumWidth(65 + 20)
         remote_refresh_btn.setMinimumHeight(24)
         remote_refresh_btn.setToolTip("Refresh remote files")
         remote_refresh_btn.clicked.connect(self.load_remote_files)
@@ -74,7 +74,7 @@ class ConnectionTab(QWidget):
 
         # New Folder button - Extra but styled identical
         remote_new_folder_btn = QPushButton("New Folder")
-        remote_new_folder_btn.setFixedWidth(85)
+        remote_new_folder_btn.setMinimumWidth(85 + 20)
         remote_new_folder_btn.setMinimumHeight(24)
         remote_new_folder_btn.setToolTip("Create new folder")
         remote_new_folder_btn.clicked.connect(lambda: self.main_window.create_remote_folder())
@@ -130,10 +130,10 @@ class ConnectionTab(QWidget):
         self.remote_table.setColumnWidth(3, 120)
 
         self.remote_table.horizontalHeader().setMinimumSectionSize(60)
-        self.remote_table.horizontalHeader().setMaximumSectionSize(400)
+        self.remote_table.horizontalHeader().setMaximumSectionSize(2000)
 
         # Section resize modes
-        self.remote_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.remote_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.remote_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.remote_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.remote_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
@@ -167,6 +167,10 @@ class ConnectionTab(QWidget):
         """Check if this tab is connected"""
         return self.manager is not None
 
+    def _folder_icon(self):
+        from PyQt6.QtWidgets import QStyle
+        return self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)
+
     def load_remote_tree(self):
         """Load the remote directory tree"""
         if not self.manager or not self.is_connected():
@@ -177,12 +181,12 @@ class ConnectionTab(QWidget):
             self.remote_tree.clear()
 
             # Create root item
-            root_item = QTreeWidgetItem(self.remote_tree)
+            root_item = QTreeWidgetItem()
             root_item.setText(0, "/")
             root_item.setData(0, Qt.ItemDataRole.UserRole, "/")
 
             # Set folder icon
-            root_item.setIcon(0, QIcon("folder.png"))  # You might want to add proper icons
+            root_item.setIcon(0, self._folder_icon())
 
             # Load subdirectories for root
             self.load_remote_tree_children(root_item, "/")
@@ -205,7 +209,7 @@ class ConnectionTab(QWidget):
                     child_item = QTreeWidgetItem(parent_item)
                     child_item.setText(0, file.name)
                     child_item.setData(0, Qt.ItemDataRole.UserRole, file.path)
-                    child_item.setIcon(0, QIcon("folder.png"))  # Add folder icon
+                    child_item.setIcon(0, self._folder_icon())
 
                     # Add dummy child to show expand arrow
                     dummy = QTreeWidgetItem(child_item)
@@ -229,14 +233,14 @@ class ConnectionTab(QWidget):
         if item:
             path = item.data(column, Qt.ItemDataRole.UserRole)
             if path:
-                self.parent().navigate_remote_with_sync(path)
+                self.main_window.navigate_remote_with_sync(path)
 
     def on_remote_tree_double_clicked(self, item, column):
         """Handle tree item double-click"""
         if item:
             path = item.data(column, Qt.ItemDataRole.UserRole)
             if path:
-                self.parent().navigate_remote_with_sync(path)
+                self.main_window.navigate_remote_with_sync(path)
 
     def show_remote_tree_context_menu(self, position):
         """Show context menu for remote tree"""
@@ -378,6 +382,7 @@ class ConnectionTab(QWidget):
             self.remote_table.setSortingEnabled(False)  # Disable sorting during load
             self.remote_table.setRowCount(0)
 
+            self.remote_path_edit.setText(self.current_remote_path)
             files = self.manager.list_files(self.current_remote_path)
 
             if not files:
@@ -399,11 +404,11 @@ class ConnectionTab(QWidget):
                 }
 
                 # Check if filtered (using parent's filter manager)
-                if hasattr(self.parent(), 'filter_manager') and self.parent().filter_manager.is_filtered(file_info):
+                if hasattr(self.main_window, 'filter_manager') and self.main_window.filter_manager.is_filtered(file_info):
                     continue
 
                 # Check if should be hidden in comparison mode
-                if hasattr(self.parent(), 'comparison_manager') and self.parent().comparison_manager.comparator.should_hide_file(file.name):
+                if hasattr(self.main_window, 'comparison_manager') and self.main_window.comparison_manager.comparator.should_hide_file(file.name):
                     continue
 
                 visible_files.append(file)
@@ -445,7 +450,6 @@ class ConnectionTab(QWidget):
                 self._add_file_row(row, file)
 
             self.remote_table.setSortingEnabled(True)
-            self.remote_table.resizeColumnsToContents()
             self.remote_table.viewport().update()  # Force refresh
             self.remote_table.repaint()  # Force repaint
 
@@ -494,23 +498,48 @@ class ConnectionTab(QWidget):
         self.load_remote_files()
 
     def refresh_remote_tree_item(self, item):
-        """Refresh a tree item"""
-        # Implementation needed
-        pass
+        """Refresh a tree item by reloading its children"""
+        if not self.manager:
+            return
+        item.takeChildren()
+        path = item.data(0, Qt.ItemDataRole.UserRole)
+        if path:
+            self.load_remote_tree_children(item, path)
 
     def create_remote_folder_at(self, path):
         """Create remote folder at path"""
-        # Implementation needed
-        pass
+        if not self.manager or not self.main_window:
+            return
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
+        if ok and name:
+            try:
+                new_path = f"{path.rstrip('/')}/{name}"
+                self.manager.create_folder(new_path)
+                if self.main_window:
+                    self.main_window.log(f"Created folder: {new_path}", "success")
+                self.load_remote_files()
+                self.load_remote_tree()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create folder: {e}")
 
     def download_remote_folder(self, path):
-        """Download remote folder"""
-        # Implementation needed
-        pass
-
-    def show_remote_tree_context_menu(self, position):
-        """Show context menu for remote tree"""
-        self.context_menu_manager.create_remote_tree_context_menu(self.remote_tree, position)
+        """Download remote folder to local"""
+        if not self.manager or not self.main_window:
+            return
+        try:
+            files = self.manager.list_files(path)
+            for f in files:
+                if not f.is_dir:
+                    local_path = str(Path(self.main_window.current_local_path) / f.name)
+                    self.main_window.add_to_transfer_queue(
+                        "Download", local_path, f.path,
+                        str(f.size), "Queued"
+                    )
+            self.main_window.process_next_transfer()
+            self.main_window.log(f"Queued folder download: {path}", "info")
+        except Exception as e:
+            self.main_window.log(f"Failed to download folder: {e}", "error")
 
     def _handle_remote_drag(self, files):
         """Handle dragging files from remote table"""
@@ -525,7 +554,7 @@ class ConnectionTab(QWidget):
 
     def _on_remote_selection_changed(self):
         """Handle remote table selection changes"""
-        if hasattr(self.parent(), 'status_bar'):
+        if hasattr(self.main_window, 'status_bar'):
             selected_items = []
             for item in self.remote_table.selectedItems():
                 if item.column() == 0:  # Only count once per row
@@ -536,4 +565,4 @@ class ConnectionTab(QWidget):
                         if file_data:
                             selected_items.append(file_data)
 
-            self.parent().status_bar.update_selection_info(selected_items, is_local=False)
+            self.main_window.status_bar.update_selection_info(selected_items, is_local=False)
